@@ -21,9 +21,10 @@ async fn main() -> std::io::Result<()> {
     loop {
         // Ожидание нового подключения
         let (socket, _) = listener.accept().await?; 
-        let tx = tx.clone(); let mut rx = tx.subscribe(); 
-        let clients = Arc::clone(&clients); tokio::spawn(async 
-        move {
+        let tx = tx.clone(); 
+        let mut rx = tx.subscribe(); 
+        let clients = Arc::clone(&clients); 
+        tokio::spawn(async move {
             let (reader, mut writer) = socket.into_split(); 
             let mut reader = BufReader::new(reader); 
             let mut nickname = String::new();
