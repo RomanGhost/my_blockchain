@@ -2,9 +2,9 @@ mod transaction;
 mod block;
 mod block_chain;
 
-use sha2::{Sha512, Digest};
+use sha2::Digest;
 use block::Block;
-use crate::block_chain::{BlockChain, hash_string};
+use block_chain::{BlockChain, hash_string};
 
 fn main() {
     let hex_string = hash_string("Hello world".to_string());
