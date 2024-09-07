@@ -1,7 +1,8 @@
 [package]
-name = "chat_server"
+name = "rust-chat-server"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+async-std = { version = "1.12", features = ["attributes"] }
+
