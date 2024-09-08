@@ -42,7 +42,6 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-
         self.sender.as_ref().unwrap().send(job).unwrap();
     }
 }
@@ -74,7 +73,6 @@ impl Worker {
             match message {
                 Ok(job) => {
                     println!("Worker {id} got a job; executing.");
-
                     job();
                 }
                 Err(_) => {

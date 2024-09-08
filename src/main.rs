@@ -1,78 +1,93 @@
 use std::{
-    fs,
-    io::{prelude::*, BufReader},
+    io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
+    sync::{Arc, Mutex},
     thread,
-    time::Duration,
 };
+use std::collections::HashSet;
 use rust_chat_server::ThreadPool;
 
+type ClientList = Arc<Mutex<HashSet<String>>>; // Используем HashSet для хранения строк (идентификаторов клиентов)
+
 fn main() {
-    let listener = TcpListener::bind("localhost:7878").unwrap(); // Используем локальный хост для тестирования
-    let pool = ThreadPool::new(4);
+    // Создание слушателя на порту 7878
+    let listener = TcpListener::bind("localhost:7878").unwrap();
+    let pool = ThreadPool::new(4); // Создаем пул потоков из 4 потоков
 
-    for stream in listener.incoming().take(2) {
+    let clients: ClientList = Arc::new(Mutex::new(HashSet::new())); // Инициализируем список клиентов
+
+    for stream in listener.incoming() {
         let stream = stream.unwrap();
+        let clients = Arc::clone(&clients); // Клонируем указатель на список клиентов
 
-        pool.execute(|| {
-            handle_connection(stream);
+        pool.execute(move || {
+            handle_connection(stream, clients);
         });
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
-    // Получаем IP-адрес клиента
-    let client_addr_ip;
-    match stream.peer_addr() {
-        Ok(client_addr) => {
-            client_addr_ip = client_addr.to_string();
-            println!("Запрос от клиента с IP: {}", client_addr);
-        }
-        Err(e) => {
-            println!("Не удалось получить IP-адрес клиента: {}", e);
-            return; // Завершаем выполнение функции, если не удалось получить IP
+// Функция для обработки подключения клиента
+fn handle_connection(mut stream: TcpStream, clients: ClientList) {
+    let client_address = match stream.peer_addr() {
+        Ok(addr) => addr.to_string(),
+        Err(_) => return,
+    };
+    println!("Клиент подключен: {}", client_address);
+
+    let mut clients_guard = clients.lock().unwrap(); // Захватываем блокировку для списка клиентов
+    clients_guard.insert(client_address.clone()); // Добавляем строку с адресом клиента в общий список
+    drop(clients_guard); // Отпускаем блокировку
+
+    let reader = BufReader::new(stream.try_clone().unwrap());
+
+    // Отправляем сообщение о новом подключении
+    broadcast_message(&clients, &format!("{} just joined", client_address));
+
+    // Обработка сообщений от клиента
+    for line in reader.lines() {
+        let message = match line {
+            Ok(msg) => msg,
+            Err(_) => {
+                break;
+            }
+        };
+
+        // Проверка специальных команд
+        if message == "/quit" {
+            println!("{} disconnected", client_address);
+            break;
+        } else if message == "/list" {
+            list_users(&mut stream, &clients);
+        } else {
+            broadcast_message(&clients, &format!("[{}] {}", client_address, message));
         }
     }
 
-    let buf_reader = BufReader::new(&mut stream);
-    let http_request_line = match buf_reader.lines().next() {
-        Some(Ok(line)) => line,
-        Some(Err(e)) => {
-            println!("Ошибка при чтении строки запроса: {}", e);
-            return;
-        }
-        None => {
-            println!("Пустой запрос");
-            return;
-        }
-    };
+    // Удаляем клиента из списка при отключении
+    let mut clients_guard = clients.lock().unwrap();
+    clients_guard.remove(&client_address);
+    drop(clients_guard);
 
-    let (status_line, filename) = match &http_request_line[..]{
-        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
-        "GET /sleep HTTP/1.1" => {
-            thread::sleep(Duration::from_secs(5));
-            ("HTTP/1.1 200 OK", "index.html")
-        }
-        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
-    };
-    let filepath = format!("pages/{filename}");
-    //     if http_request_line == "GET / HTTP/1.1" {
-    //     thread::sleep(Duration::from_secs(5));
-    //     ("HTTP/1.1 200 OK", "pages/index.html")
-    // } else {
-    //     ("HTTP/1.1 404 NOT FOUND", "pages/404.html")
-    // };
+    // Сообщаем другим пользователям об отключении клиента
+    broadcast_message(&clients, &format!("{} has quit", client_address));
+}
 
-    let raw_content = fs::read_to_string(filepath).unwrap_or_else(|e| {
-        println!("Ошибка при чтении файла: {}", e);
-        String::new()
-    });
-    let content = raw_content.replace(":ip", &client_addr_ip);
-    let length = content.len();
+// Функция для отправки сообщения всем пользователям
+fn broadcast_message(clients: &ClientList, message: &str) {
+    let clients_guard = clients.lock().unwrap(); // Захватываем блокировку для списка клиентов
 
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
-
-    if let Err(e) = stream.write_all(response.as_bytes()) {
-        println!("Ошибка при отправке ответа клиенту: {}", e);
+    for client_addr in clients_guard.iter() {
+        println!("Отправка сообщения пользователю {}: {}", client_addr, message);
+        // Здесь предполагается отправка сообщений, возможно, через сохраненные TcpStream,
+        // или другой способ, обеспечивающий связь.
     }
+}
+
+// Функция для отправки списка всех пользователей
+fn list_users(stream: &mut TcpStream, clients: &ClientList) {
+    let clients_guard = clients.lock().unwrap();
+    let users: Vec<String> = clients_guard.iter().cloned().collect();
+
+    let response = format!("===\nConnected users:\n{}\n===", users.join("\n - "));
+    let _ = stream.write_all(response.as_bytes());
 }
