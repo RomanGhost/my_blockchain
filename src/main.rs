@@ -1,93 +1,113 @@
-use std::{
-    io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
-    thread,
-};
 use std::collections::HashSet;
-use rust_chat_server::ThreadPool;
+use std::sync::{Arc, Mutex};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast;
+use tokio::task;
 
-type ClientList = Arc<Mutex<HashSet<String>>>; // Используем HashSet для хранения строк (идентификаторов клиентов)
-
-fn main() {
-    // Создание слушателя на порту 7878
-    let listener = TcpListener::bind("localhost:7878").unwrap();
-    let pool = ThreadPool::new(4); // Создаем пул потоков из 4 потоков
-
-    let clients: ClientList = Arc::new(Mutex::new(HashSet::new())); // Инициализируем список клиентов
-
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        let clients = Arc::clone(&clients); // Клонируем указатель на список клиентов
-
-        pool.execute(move || {
-            handle_connection(stream, clients);
-        });
-    }
+#[derive(Debug)]
+struct Connection {
+    nickname: String, // Псевдоним пользователя
+    stream: TcpStream, // Поток для чтения и записи данных
 }
 
-// Функция для обработки подключения клиента
-fn handle_connection(mut stream: TcpStream, clients: ClientList) {
-    let client_address = match stream.peer_addr() {
-        Ok(addr) => addr.to_string(),
-        Err(_) => return,
-    };
-    println!("Клиент подключен: {}", client_address);
+// Функция для отображения сообщений на сервере
+fn display_message(message: &str) {
+    println!("{}", message);
+}
 
-    let mut clients_guard = clients.lock().unwrap(); // Захватываем блокировку для списка клиентов
-    clients_guard.insert(client_address.clone()); // Добавляем строку с адресом клиента в общий список
-    drop(clients_guard); // Отпускаем блокировку
+// Обрабатывает подключение клиента
+async fn handle_connection(
+    mut stream: TcpStream, // Поток для чтения и записи данных
+    nickname: String, // Псевдоним пользователя
+    tx: broadcast::Sender<String>, // Отправитель сообщений для вещания
+    mut rx: broadcast::Receiver<String>, // Получатель сообщений для вещания
+) {
+    let (reader, mut writer) = stream.split(); // Разделяет поток на чтение и запись
+    let mut reader = tokio::io::BufReader::new(reader).lines(); // Буферизированное чтение строк
 
-    let reader = BufReader::new(stream.try_clone().unwrap());
+    // Уведомление о новом подключении
+    let join_message = format!("{} just joined", nickname);
+    tx.send(join_message.clone()).unwrap();
+    display_message(&join_message); // Отображение сообщения на сервере
 
-    // Отправляем сообщение о новом подключении
-    broadcast_message(&clients, &format!("{} just joined", client_address));
+    // Отправка приветственного сообщения новому пользователю
+    let welcome_message = format!(
+        "===\n✨ Welcome {}!\n\nThere are {} user(s) here beside you\n\nHelp:\n - Type anything to chat\n - /list will list all the connected users\n - /quit will disconnect you\n===",
+        nickname, 0 // Место для количества пользователей (временно 0)
+    );
+    writer.write_all(welcome_message.as_bytes()).await.unwrap(); // Отправка сообщения
+    writer.flush().await.unwrap(); // Обеспечивает, что все данные отправлены
 
-    // Обработка сообщений от клиента
-    for line in reader.lines() {
-        let message = match line {
-            Ok(msg) => msg,
-            Err(_) => {
-                break;
+    // Основной цикл обработки входящих сообщений
+    loop {
+        tokio::select! {
+            line = reader.next_line() => { // Чтение следующей строки из входящего потока
+                match line {
+                    Ok(Some(message)) => { // Успешное чтение строки
+                        if message == "/quit" { // Если сообщение /quit
+                            let quit_message = format!("{} has quit", nickname);
+                            tx.send(quit_message.clone()).unwrap(); // Уведомление об отключении
+                            display_message(&quit_message); // Отображение сообщения на сервере
+                            break; // Выход из цикла обработки сообщений
+                        } else if message == "/list" { // Если сообщение /list
+                            let users = tx.receiver_count(); // Получение количества подключенных пользователей (временно)
+                            let list_message = format!("===\nCurrently connected users:\n - {} (you)\n===\n", nickname);
+                            writer.write_all(list_message.as_bytes()).await.unwrap(); // Отправка списка пользователей
+                            writer.flush().await.unwrap(); // Обеспечивает, что все данные отправлены
+                        } else { // Для остальных сообщений
+                            let chat_message = format!("[{}] {}", nickname, message);
+                            tx.send(chat_message.clone()).unwrap(); // Отправка сообщения в канал вещания
+                            display_message(&chat_message); // Отображение сообщения на сервере
+                        }
+                    }
+                    Ok(None) | Err(_) => break, // Прерывание цикла при ошибке или завершении потока
+                }
             }
-        };
-
-        // Проверка специальных команд
-        if message == "/quit" {
-            println!("{} disconnected", client_address);
-            break;
-        } else if message == "/list" {
-            list_users(&mut stream, &clients);
-        } else {
-            broadcast_message(&clients, &format!("[{}] {}", client_address, message));
+            msg = rx.recv() => { // Получение сообщения из канала вещания
+                match msg {
+                    Ok(msg) => {
+                        writer.write_all(msg.as_bytes()).await.unwrap(); // Отправка сообщения пользователю
+                        writer.flush().await.unwrap(); // Обеспечивает, что все данные отправлены
+                    }
+                    Err(_) => break, // Прерывание цикла при ошибке получения сообщения
+                }
+            }
         }
     }
 
-    // Удаляем клиента из списка при отключении
-    let mut clients_guard = clients.lock().unwrap();
-    clients_guard.remove(&client_address);
-    drop(clients_guard);
-
-    // Сообщаем другим пользователям об отключении клиента
-    broadcast_message(&clients, &format!("{} has quit", client_address));
+    // Завершение соединения и уведомление об отключении
+    let quit_message = format!("{} has quit", nickname);
+    tx.send(quit_message.clone()).unwrap();
+    display_message(&quit_message); // Отображение сообщения на сервере
 }
 
-// Функция для отправки сообщения всем пользователям
-fn broadcast_message(clients: &ClientList, message: &str) {
-    let clients_guard = clients.lock().unwrap(); // Захватываем блокировку для списка клиентов
+// Основная функция, инициализирующая сервер
+#[tokio::main]
+async fn main() {
+    let (tx, _) = broadcast::channel(100); // Создание канала вещания с буфером на 100 сообщений
+    let listener = TcpListener::bind("0.0.0.0:8888").await.unwrap(); // Привязка сервера к порту 8888
 
-    for client_addr in clients_guard.iter() {
-        println!("Отправка сообщения пользователю {}: {}", client_addr, message);
-        // Здесь предполагается отправка сообщений, возможно, через сохраненные TcpStream,
-        // или другой способ, обеспечивающий связь.
+    loop {
+        let (mut stream, _) = listener.accept().await.unwrap(); // Принятие входящего подключения
+        let tx = tx.clone(); // Клонирование отправителя сообщений
+        let (reader, mut writer) = stream.split(); // Разделение потока на чтение и запись
+        let mut reader = tokio::io::BufReader::new(reader).lines(); // Буферизированное чтение строк
+
+        // Запрос псевдонима у нового клиента
+        writer.write_all(b"> Choose your nickname: ").await.unwrap(); // Отправка запроса на выбор псевдонима
+        writer.flush().await.unwrap(); // Обеспечивает, что все данные отправлены
+
+        // Чтение псевдонима от клиента
+        let nickname = if let Some(nick) = reader.next_line().await.ok().flatten() {
+            nick
+        } else {
+            continue; // Если не удалось получить псевдоним, продолжить ожидание нового подключения
+        };
+
+        // Обработка подключения клиента
+        let tx = tx.clone(); // Клонирование отправителя сообщений
+        let rx = tx.subscribe(); // Подписка на канал вещания
+        tokio::spawn(handle_connection(stream, nickname, tx, rx)); // Создание асинхронной задачи для обработки подключения
     }
-}
-
-// Функция для отправки списка всех пользователей
-fn list_users(stream: &mut TcpStream, clients: &ClientList) {
-    let clients_guard = clients.lock().unwrap();
-    let users: Vec<String> = clients_guard.iter().cloned().collect();
-
-    let response = format!("===\nConnected users:\n{}\n===", users.join("\n - "));
-    let _ = stream.write_all(response.as_bytes());
 }
