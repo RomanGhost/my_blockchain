@@ -40,8 +40,9 @@ impl Blockchain {
     }
 
     fn valid_block(&self, block:&Block) -> bool{
-        let block_hash = block.to_json();
-        let start_with = "00";
+        let block_hash = block.get_hash();
+        let start_with = "000";
+        
         &block_hash[..start_with.len()] == start_with
     }
 
