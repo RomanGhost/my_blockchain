@@ -3,7 +3,7 @@ mod block;
 mod blockchain;
 
 use sha2::Digest;
-use blockchain::{Blockchain, hash_string};
+use blockchain::Blockchain;
 
 fn main() {
     let mut blockchain = Blockchain::new();

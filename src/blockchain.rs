@@ -24,15 +24,25 @@ impl Blockchain {
         }
     }
 
-
     pub fn create_first_block(&mut self) {
-        let hex_string = hash_string("First block".to_string());
+        let word = "First block"; //Сделать это переменной окружения
+        let mut hasher = Sha512::new();
+        hasher.update(word);
+        let result = hasher.finalize();
+        let hex_string = format!("{:x}", result);
+
         let block = Block::new(1, vec![], hex_string, 0);
         self.add_block(block);
     }
 
     pub fn len(&self) -> usize{
         self.chain.len()
+    }
+
+    fn valid_block(&self, block:&Block) -> bool{
+        let block_hash = block.to_json();
+        let start_with = "00";
+        &block_hash[..start_with.len()] == start_with
     }
 
     pub fn proof_of_work(&mut self){
@@ -43,15 +53,9 @@ impl Blockchain {
         };
     }
 
-    fn valid_block(&self, block:&Block) -> bool{
-        let block_hash = block.to_json();
-        let start_with = "00";
-        &block_hash[..start_with.len()] == start_with
-    }
-
     fn _proof_of_work(&mut self, last_block:Block){
         let mut i:u64 = 1;
-        let last_block_hash = hash_string(last_block.to_json());
+        let last_block_hash = last_block.get_hash();
 
         loop{
             let block = Block::new(self.chain.len(), vec![], last_block_hash.clone(), last_block.get_nonce()+i);
@@ -64,12 +68,4 @@ impl Blockchain {
         };
 
     }
-}
-
-pub fn hash_string(object: String) -> String {
-    let mut hasher = Sha512::new();
-    hasher.update(object);
-    let result = hasher.finalize();
-    let hex_string = format!("{:x}", result);
-    hex_string
 }
