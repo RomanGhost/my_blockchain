@@ -1,83 +1,26 @@
-use sha2::{Sha256, Digest};
-use std::time::{SystemTime, UNIX_EPOCH};
+mod transaction;
+mod block;
+mod block_chain;
 
-#[derive(Debug, Clone)]
-struct Block {
-    index: u64,
-    previous_hash: String,
-    timestamp: u64,
-    data: String,
-    nonce: u64,
-    hash: String,
-}
-
-impl Block {
-    fn new(index: u64, previous_hash: String, data: String) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_secs();
-        let mut block = Block {
-            index,
-            previous_hash,
-            timestamp,
-            data,
-            nonce: 0,
-            hash: String::new(),
-        };
-        block.hash = block.calculate_hash();
-        block
-    }
-
-    fn calculate_hash(&self) -> String {
-        let data = format!(
-            "{}{}{}{}{}",
-            self.index, self.previous_hash, self.timestamp, self.data, self.nonce
-        );
-        let mut hasher = Sha256::new();
-        hasher.update(data);
-        format!("{:x}", hasher.finalize())
-    }
-
-    fn mine_block(&mut self, difficulty: usize) {
-        let target = "0".repeat(difficulty);
-        while &self.hash[..difficulty] != target {
-            self.nonce += 1;
-            self.hash = self.calculate_hash();
-        }
-        println!("Block mined: {}", self.hash);
-    }
-}
-
-struct Blockchain {
-    chain: Vec<Block>,
-    difficulty: usize,
-}
-
-impl Blockchain {
-    fn new() -> Self {
-        let mut blockchain = Blockchain {
-            chain: Vec::new(),
-            difficulty: 4,
-        };
-        blockchain.chain.push(Block::new(0, String::from("0"), String::from("Genesis Block")));
-        blockchain
-    }
-
-    fn add_block(&mut self, data: String) {
-        let previous_hash = self.chain.last().unwrap().hash.clone();
-        let mut new_block = Block::new(self.chain.len() as u64, previous_hash, data);
-        new_block.mine_block(self.difficulty);
-        self.chain.push(new_block);
-    }
-}
+use sha2::Digest;
+use block::Block;
+use block_chain::{BlockChain, hash_string};
 
 fn main() {
-    let mut blockchain = Blockchain::new();
-    blockchain.add_block("Block 1 Data".to_string());
-    blockchain.add_block("Block 2 Data".to_string());
+    let hex_string = hash_string("Hello world".to_string());
+    let block = Block::new(1, vec![], hex_string, 29);
 
-    for block in &blockchain.chain {
-        println!("{:?}", block);
+    let mut block_chain = BlockChain::new();
+    block_chain.add_block(block);
+    let last_block = block_chain.get_last_block();
+
+    match last_block {
+    // Ok(v) => v.get_hash(),
+    Ok(v) => println!("working with version: {}", v.get_hash()),
+    Err(e) => println!("error parsing header: {e:?}"),
+    };
+    while block_chain.len() < 10{
+        block_chain.proof_of_work();
+        println!("Len: {}", block_chain.chain.len());
     }
 }
