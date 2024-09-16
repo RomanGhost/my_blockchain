@@ -23,7 +23,7 @@ impl Server {
         let addr = format!("{}:{}", self.ip, self.port); // Форматирование адреса
         let listener = TcpListener::bind(&addr).await.expect("Failed to bind address"); // Привязка сервера к порту
 
-        println!("Server running on {}", addr);
+        println!("Server running on {}\r", addr);
 
         loop {
             let (mut stream, _) = listener.accept().await.expect("Failed to accept connection"); // Принятие входящего подключения
@@ -61,13 +61,13 @@ async fn handle_connection(
     let mut reader = tokio::io::BufReader::new(reader).lines(); // Буферизированное чтение строк
 
     // Уведомление о новом подключении
-    let join_message = format!("{} just joined", nickname);
+    let join_message = format!("{} just joined\n\r", nickname);
     tx.send(join_message.clone()).unwrap();
     display_message(&join_message); // Отображение сообщения на сервере
 
     // Отправка приветственного сообщения новому пользователю
     let welcome_message = format!(
-        "===\n✨ Welcome {}!\n\nThere are {} user(s) here beside you\n\nHelp:\n - Type anything to chat\n - /list will list all the connected users\n - /quit will disconnect you\n===",
+        "===\n\r✨ Welcome {}!\n\r\n\rThere are {} user(s) here beside you\n\r\n\rHelp:\n\r - Type anything to chat\n\r - /list will list all the connected users\n\r - /quit will disconnect you\n\r===\n\r",
         nickname, 0 // Место для количества пользователей (временно 0)
     );
     writer.write_all(welcome_message.as_bytes()).await.unwrap(); // Отправка сообщения
@@ -80,17 +80,17 @@ async fn handle_connection(
                 match line {
                     Ok(Some(message)) => { // Успешное чтение строки
                         if message == "/quit" { // Если сообщение /quit
-                            let quit_message = format!("{} has quit", nickname);
+                            let quit_message = format!("{} has quit\n\r", nickname);
                             tx.send(quit_message.clone()).unwrap(); // Уведомление об отключении
                             display_message(&quit_message); // Отображение сообщения на сервере
                             break; // Выход из цикла обработки сообщений
                         } else if message == "/list" { // Если сообщение /list
                             let users = tx.receiver_count(); // Получение количества подключенных пользователей (временно)
-                            let list_message = format!("===\nCurrently connected users:\n - {} (you)\n===\n", nickname);
+                            let list_message = format!("===\n\rCurrently connected users:\n\r - {} (you)\n\r===\n\r", nickname);
                             writer.write_all(list_message.as_bytes()).await.unwrap(); // Отправка списка пользователей
                             writer.flush().await.unwrap(); // Обеспечивает, что все данные отправлены
                         } else { // Для остальных сообщений
-                            let chat_message = format!("[{}] {}", nickname, message);
+                            let chat_message = format!("[{}] {}\n\r", nickname, message);
                             tx.send(chat_message.clone()).unwrap(); // Отправка сообщения в канал вещания
                             display_message(&chat_message); // Отображение сообщения на сервере
                         }
@@ -111,12 +111,12 @@ async fn handle_connection(
     }
 
     // Завершение соединения и уведомление об отключении
-    let quit_message = format!("{} has quit", nickname);
+    let quit_message = format!("{} has quit\n\r", nickname);
     tx.send(quit_message.clone()).unwrap();
     display_message(&quit_message); // Отображение сообщения на сервере
 }
 
 // Функция для отображения сообщений на сервере
 fn display_message(message: &str) {
-    println!("{}", message);
+    print!("{}", message);
 }

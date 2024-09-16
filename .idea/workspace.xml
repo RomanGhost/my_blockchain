@@ -7,12 +7,11 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a5f92bc4-f951-4f1d-b165-09d96f8214fe" name="Changes" comment="worked server">
-      <change afterPath="$PROJECT_DIR$/src/connection.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/server.rs" afterDir="false" />
+    <list default="true" id="a5f92bc4-f951-4f1d-b165-09d96f8214fe" name="Changes" comment="delete function">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/connection.rs" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/single_threaded_server.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/server.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -184,6 +183,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
     <MESSAGE value="worked server" />
-    <option name="LAST_COMMIT_MESSAGE" value="worked server" />
+    <MESSAGE value="delete function" />
+    <option name="LAST_COMMIT_MESSAGE" value="delete function" />
   </component>
 </project>
