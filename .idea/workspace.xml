@@ -7,11 +7,12 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a5f92bc4-f951-4f1d-b165-09d96f8214fe" name="Changes" comment="delete function">
+    <list default="true" id="a5f92bc4-f951-4f1d-b165-09d96f8214fe" name="Changes" comment="worked beauty server">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/connection.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/server.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/server.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server.rs" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,12 +35,12 @@
     &quot;assignee&quot;: &quot;RomanGhost&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/RomanGhost/my_blockchain&quot;,
-    &quot;accountId&quot;: &quot;0674a751-1c40-4b04-8462-161ddc8d5b24&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "git@github.com:RomanGhost/my_blockchain.git",
+    "accountId": "0674a751-1c40-4b04-8462-161ddc8d5b24"
   }
-}</component>
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="bim4vrby" />
   </component>
@@ -138,6 +139,7 @@
       <workItem from="1725723384080" duration="13843000" />
       <workItem from="1725816182234" duration="709000" />
       <workItem from="1726421604800" duration="8120000" />
+      <workItem from="1726500780028" duration="4075000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -163,7 +165,15 @@
       <option name="project" value="LOCAL" />
       <updated>1726429599172</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="worked beauty server">
+      <option name="closed" value="true" />
+      <created>1726483594060</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1726483594060</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -184,6 +194,7 @@
     <MESSAGE value="first commit" />
     <MESSAGE value="worked server" />
     <MESSAGE value="delete function" />
-    <option name="LAST_COMMIT_MESSAGE" value="delete function" />
+    <MESSAGE value="worked beauty server" />
+    <option name="LAST_COMMIT_MESSAGE" value="worked beauty server" />
   </component>
 </project>
