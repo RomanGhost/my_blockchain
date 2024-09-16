@@ -1,12 +1,12 @@
 use sha2::{Digest, Sha512};
 use crate::block::Block;
 
-pub struct BlockChain{
+pub struct Blockchain {
     pub(crate) chain:Vec<Block>,
 }
-impl BlockChain{
-    pub fn new() -> BlockChain{
-        BlockChain{
+impl Blockchain {
+    pub fn new() -> Blockchain {
+        Blockchain {
             chain:vec![],
         }
     }
@@ -24,6 +24,13 @@ impl BlockChain{
         }
     }
 
+
+    pub fn create_first_block(&mut self) {
+        let hex_string = hash_string("First block".to_string());
+        let block = Block::new(1, vec![], hex_string, 0);
+        self.add_block(block);
+    }
+
     pub fn len(&self) -> usize{
         self.chain.len()
     }
@@ -31,19 +38,18 @@ impl BlockChain{
     pub fn proof_of_work(&mut self){
         let last_block = self.get_last_block();
         match last_block {
-            Ok(b) => self.proof_of_work_block(b),
+            Ok(b) => self._proof_of_work(b),
             Err(e) => println!("error parsing header: {e:?}"),
         };
     }
 
     fn valid_block(&self, block:&Block) -> bool{
-        let block_json = block.to_json();
-        let hash_res = hash_string(block_json);
-        let start_with = "00000";
-        &hash_res[..start_with.len()] == start_with
+        let block_hash = block.to_json();
+        let start_with = "00";
+        &block_hash[..start_with.len()] == start_with
     }
 
-    fn proof_of_work_block(&mut self, last_block:Block){
+    fn _proof_of_work(&mut self, last_block:Block){
         let mut i:u64 = 1;
         let last_block_hash = hash_string(last_block.to_json());
 
