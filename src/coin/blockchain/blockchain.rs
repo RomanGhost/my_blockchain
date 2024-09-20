@@ -2,7 +2,7 @@ use sha2::{Digest, Sha512};
 use crate::block::Block;
 
 pub struct Blockchain {
-    pub(crate) chain:Vec<Block>,
+    pub chain:Vec<Block>,
 }
 impl Blockchain {
     pub fn new() -> Blockchain {

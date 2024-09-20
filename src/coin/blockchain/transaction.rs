@@ -1,5 +1,5 @@
 pub struct Transaction{
-    pub(crate) id:u64,
+    pub id:u64,
 }
 impl Transaction{
     pub fn to_string(&self) ->String{
