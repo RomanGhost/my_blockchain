@@ -1,11 +1,10 @@
 use std::{
     collections::HashMap,
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
-    io::Write,
+    io::{Write},
 };
-use std::net::TcpStream;
 use crate::coin::connection::ClientHandler;
 use crate::coin::peers::Clients;
 
@@ -51,22 +50,12 @@ impl Server {
     pub fn broadcast_message(&self, message: String) {
         let message = format!("{}\n\r", message.trim());
 
-        let clients = match self.clients.try_lock() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Error locking clients for broadcasting: {}", e);
-                return;
-            }
-        };
+        // Используем lock() для захвата мьютекса
+        let clients = self.clients.lock().expect("Failed to lock clients for broadcasting");
 
         for (peer, client_data) in clients.iter() {
-            let mut stream = match client_data.stream.lock() {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("Error locking stream for client {}: {}", peer, e);
-                    continue;
-                }
-            };
+            // Используем lock() для захвата потока клиента
+            let mut stream = client_data.stream.lock().expect("Failed to lock stream for client");
 
             if let Err(e) = stream.write_all(message.as_bytes()) {
                 eprintln!("Error writing message to client {}: {}", peer, e);
@@ -98,7 +87,7 @@ impl Server {
 impl Drop for Server {
     fn drop(&mut self) {
         for handle in self.threads.drain(..) {
-            println!("Delete thread");
+            println!("Deleting thread");
             if let Err(e) = handle.join() {
                 eprintln!("Error joining thread: {:?}", e);
             }
