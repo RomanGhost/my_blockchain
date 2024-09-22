@@ -3,9 +3,9 @@ use std::{
     net::TcpListener,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
-    time::Duration,
     io::Write,
 };
+use std::net::TcpStream;
 use crate::coin::connection::ClientHandler;
 use crate::coin::peers::Clients;
 
@@ -21,26 +21,14 @@ impl Server {
         Server { clients, threads }
     }
 
-    pub fn run(&mut self, address: &str) {
-        let listener = match TcpListener::bind(address) {
+    pub fn run(&mut self, address: String) {
+        let listener = match TcpListener::bind(address.clone()) {
             Ok(l) => l,
             Err(e) => {
                 eprintln!("Couldn't bind to address: {}", e);
                 return;
             }
         };
-
-        // Поток для периодической отправки "UPDATE SRV" сообщений
-        let clients = Arc::clone(&self.clients);
-        let update_handle = thread::spawn(move || {
-            loop {
-                thread::sleep(Duration::from_secs(60)); // Каждую минуту
-                Server::broadcast_message(&clients, "UPDATE SRV");
-            }
-        });
-
-        self.threads.push(update_handle);
-
         // Потоки для обработки входящих соединений
         for stream in listener.incoming() {
             match stream {
@@ -60,32 +48,49 @@ impl Server {
     }
 
     /// Метод для массовой рассылки сообщения всем подключенным клиентам
-    pub fn broadcast_message(clients: &Clients, message: &str) {
-        let message = format!("{}\n\r", message);
+    pub fn broadcast_message(&self, message: String) {
+        let message = format!("{}\n\r", message.trim());
 
-        let clients_guard = clients.lock();
-        if let Ok(clients) = clients_guard {
-            for (peer, client_data) in clients.iter() {
-                let mut stream = match client_data.stream.lock() {
-                    Ok(s) => s,
-                    Err(e) => {
-                        eprintln!("Error locking stream for client {}: {}", peer, e);
-                        continue;
-                    }
-                };
-
-                if let Err(e) = stream.write_all(message.as_bytes()) {
-                    eprintln!("Error sending message to client {}: {}", peer, e);
-                }
+        let clients = match self.clients.try_lock() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error locking clients for broadcasting: {}", e);
+                return;
             }
-        } else {
-            eprintln!("Failed to lock clients for broadcasting");
+        };
+
+        for (peer, client_data) in clients.iter() {
+            let mut stream = match client_data.stream.lock() {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error locking stream for client {}: {}", peer, e);
+                    continue;
+                }
+            };
+
+            if let Err(e) = stream.write_all(message.as_bytes()) {
+                eprintln!("Error writing message to client {}: {}", peer, e);
+            }
         }
     }
 
-    /// Метод для отправки конкретного сообщения при событии
-    pub fn notify_event(&self, event_message: &str) {
-        Server::broadcast_message(&self.clients, event_message);
+    pub fn connect_to_peer(&mut self, address: &str) {
+        match TcpStream::connect(address) {
+            Ok(stream) => {
+                let clients = Arc::clone(&self.clients);
+
+                let handle = thread::spawn(move || {
+                    let handler = ClientHandler::new(stream, clients);
+                    handler.handle();
+                });
+
+                println!("Connected to peer: {}", address);
+                self.threads.push(handle);
+            }
+            Err(e) => {
+                eprintln!("Couldn't connect to peer {}: {}", address, e);
+            }
+        }
     }
 }
 

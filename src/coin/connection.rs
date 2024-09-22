@@ -54,8 +54,9 @@ impl ClientHandler {
                     break;
                 }
                 Ok(_) => {
+                    //Полученное сообщение от других клиентов
                     let message = format!("[{}]: {}", self.peer_addr, buffer.trim());
-                    println!("{}", message);
+                    println!("Получено новое сообщение: {}", message);
                     // Массивная рассылка
                     self.broadcast(message);
                 }
@@ -68,12 +69,11 @@ impl ClientHandler {
                 }
             }
         }
-
         // Удаляем клиента при отключении
         self.cleanup();
     }
 
-    fn broadcast(&self, message: String) {
+    pub fn broadcast(&self, message: String) {
         let message = format!("{}\n\r", message.trim());
 
         let clients = match self.clients.lock() {
