@@ -1,5 +1,6 @@
 use sha2::{Digest, Sha512};
-use crate::block::Block;
+
+use crate::coin::blockchain::block::Block;
 
 pub struct Blockchain {
     pub chain:Vec<Block>,

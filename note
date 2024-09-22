@@ -1,0 +1,14 @@
+труктура сообщений по передаче в сети
+
+При рассылке пблоков по сети(common)
+{
+ 'id': int
+ 'block': jsonBlock
+ 'time_stamp': utime
+}
+
+При подключении к сети
+{
+ 'last_id': int
+ 'ip_port': string
+}

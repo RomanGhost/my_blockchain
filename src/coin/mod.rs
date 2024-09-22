@@ -1,4 +1,6 @@
 
 mod connection;
 mod peers;
-pub(crate) mod server;
+pub mod server;
+pub mod message;
+pub mod blockchain;
