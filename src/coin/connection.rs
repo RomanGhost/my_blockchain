@@ -5,7 +5,7 @@ use crate::coin::peers::{ClientData, Clients};
 
 pub struct ClientHandler {
     clients: Clients,
-    stream: Arc<Mutex<TcpStream>>,
+    stream: Arc<Mutex<TcpStream>>, // Используем Arc<Mutex<TcpStream>> для совместного доступа из потоков
     peer_addr: String,
 }
 
@@ -14,26 +14,29 @@ impl ClientHandler {
         let peer_addr = match stream.peer_addr() {
             Ok(addr) => addr.to_string(),
             Err(e) => {
-                eprintln!("Couldn't get peer address: {}", e);
-                String::new() // Возвращаем пустой адрес, если не удалось получить
+                eprintln!("Не удалось получить адрес узла: {}", e);
+                String::new() // Если не удалось получить адрес, возвращаем пустую строку
             }
         };
+        println!("Получено новое подключение!{}", peer_addr);
         Self {
             clients,
-            stream: Arc::new(Mutex::new(stream)),
+            stream: Arc::new(Mutex::new(stream)), // Оборачиваем TcpStream в Arc<Mutex>
             peer_addr,
         }
     }
 
+    // Основная функция обработки клиента
     pub fn handle(self) {
         let mut buffer = String::new();
         let mut reader = BufReader::new(self.stream.lock().unwrap().try_clone().unwrap());
 
+        // Добавляем клиента в общий список
         {
             let mut clients = match self.clients.lock() {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Error locking clients: {}", e);
+                    eprintln!("Ошибка при блокировке клиентов: {}", e);
                     return;
                 }
             };
@@ -45,71 +48,72 @@ impl ClientHandler {
             );
         }
 
+        // Читаем данные от клиента в цикле
         loop {
             buffer.clear();
-            // Читаем сообщение от клиента
             match reader.read_line(&mut buffer) {
                 Ok(0) => {
-                    println!("Client disconnected: {}", self.peer_addr);
+                    println!("Клиент отключился: {}", self.peer_addr);
                     break;
                 }
                 Ok(_) => {
-                    //Полученное сообщение от других клиентов
+                    // Сообщение от клиента
                     let message = format!("[{}]: {}", self.peer_addr, buffer.trim());
                     println!("Получено новое сообщение: {}", message);
-                    // Массивная рассылка
-                    self.broadcast(message);
+                    self.broadcast(message); // Рассылаем сообщение другим клиентам
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Error reading from client {}: {}. Buffer: {}",
-                        self.peer_addr, e, buffer
-                    );
+                    eprintln!("Ошибка при чтении от клиента {}: {}", self.peer_addr, e);
                     break;
                 }
             }
         }
-        // Удаляем клиента при отключении
+
+        // Очищаем список клиентов при отключении
         self.cleanup();
     }
 
+    // Функция рассылки сообщения всем клиентам, кроме отправителя
     pub fn broadcast(&self, message: String) {
         let message = format!("{}\n\r", message.trim());
 
+        // Блокируем список клиентов для доступа
         let clients = match self.clients.lock() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("Error locking clients for broadcasting: {}", e);
+                eprintln!("Ошибка при блокировке клиентов для рассылки: {}", e);
                 return;
             }
         };
 
+        // Рассылаем сообщение всем клиентам, кроме отправителя
         for (peer, client_data) in clients.iter() {
             if peer != &self.peer_addr {
                 let mut stream = match client_data.stream.lock() {
                     Ok(s) => s,
                     Err(e) => {
-                        eprintln!("Error locking stream for client {}: {}", peer, e);
+                        eprintln!("Ошибка при блокировке потока для клиента {}: {}", peer, e);
                         continue;
                     }
                 };
 
                 if let Err(e) = stream.write_all(message.as_bytes()) {
-                    eprintln!("Error writing message to client {}: {}", peer, e);
+                    eprintln!("Ошибка отправки сообщения клиенту {}: {}", peer, e);
                 }
             }
         }
     }
 
+    // Функция для удаления клиента из списка при отключении
     fn cleanup(&self) {
         let mut clients = match self.clients.lock() {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("Error locking clients to remove disconnected client {}: {}", self.peer_addr, e);
+                eprintln!("Ошибка при блокировке клиентов для удаления {}: {}", self.peer_addr, e);
                 return;
             }
         };
         clients.remove(&self.peer_addr);
-        println!("Client {} removed", self.peer_addr);
+        println!("Клиент {} удален", self.peer_addr);
     }
 }

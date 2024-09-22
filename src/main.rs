@@ -1,75 +1,94 @@
-mod coin;
-
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, TryLockError};
 use std::{io, thread};
 use std::io::Read;
+use std::time::Duration;
+use std::sync::mpsc::{self, Sender, Receiver};
+
+mod coin;
 use coin::server::Server;
 
 fn get_input_text(info_text: String) -> String {
     let mut input = String::new();
     println!("{}", info_text);
-    let input = match io::stdin().read_line(&mut input){
-        Ok(i) => input.trim().to_string(),
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => input.trim().to_string(),
         Err(e) => {
             eprintln!("Error with reading: {}", e);
-            return "".to_string();
+            String::new()
         }
-    };
-    input
+    }
+}
+
+fn try_lock_with_retry<T>(
+    mutex: &Arc<Mutex<T>>,
+    retries: usize,
+    delay: Duration,
+) -> Option<std::sync::MutexGuard<T>> {
+    for _ in 0..retries {
+        match mutex.try_lock() {
+            Ok(guard) => return Some(guard),
+            Err(TryLockError::WouldBlock) => {
+                thread::sleep(delay); // Ждём перед новой попыткой
+            }
+            Err(_) => {
+                eprintln!("Failed to acquire lock");
+                return None;
+            }
+        }
+    }
+    None
 }
 
 fn main() {
     let server = Arc::new(Mutex::new(Server::new()));
+    let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+
     let server_clone = Arc::clone(&server);
+    let server_address = get_input_text("Введите адрес сервера (ip:port):".to_string());
 
-    let server_address: String = get_input_text("Введите адрес сервера (ip:port)".to_string());
-    let connect = get_input_text("Выполнить подключение к серверам?[y/n]".to_string());
-
-    let thread = thread::spawn(move || {
-        let mut server_lock = match server_clone.lock() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Error locking server for creating: {}", e);
-                return;
-            }
-        };
+    // Поток для обработки входящих соединений и клиентов
+    let server_thread = thread::spawn(move || {
+        let mut server_lock = server_clone.lock().expect("Ошибка блокировки сервера");
         server_lock.run(server_address);
     });
-
-    // Подключение к пирам
-    if connect == "y" {
+    {
         let peer_addresses = vec!["localhost:7879", "localhost:7877"];
         for peer in peer_addresses {
-            let mut server_lock = match server.try_lock() {
-                Ok(c) => c,
-                Err(e) => {
-                    eprintln!("Error locking server for peer connected: {}", e);
-                    return;
-                }
-            };
-            server_lock.connect_to_peer(peer);
+            let server_lock = try_lock_with_retry(&server, 5, Duration::from_millis(100));
+            if let Some(mut server) = server_lock {
+                server.connect_to_peer(peer);
+            } else {
+                eprintln!("Couldn't acquire lock for peer connection: {}", peer);
+            }
         }
     }
 
-    // // Цикл для передачи сообщений
-    // loop {
-    //     let mut input = "first message".to_string();
-    //     if input == "quit" {
-    //         break;
-    //     }
-    //
-    //     let server_lock = match server.try_lock() {
-    //         Ok(c) => c,
-    //         Err(e) => {
-    //             eprintln!("Error locking server for broadcasting: {}", e);
-    //             return;
-    //         }
-    //     };
-    //     server_lock.broadcast_message(input.clone());
-    //     println!("Вы передали: {}", input);
-    //     thread::sleep(std::time::Duration::from_millis(5000));
-    //
-    // }
+    // Поток для обработки ввода
+    let input_thread = thread::spawn(move || {
+        loop {
+            let input = get_input_text("Text: ".to_string());
+            if let Err(_) = tx.send(input) {
+                eprintln!("Ошибка при отправке сообщения");
+                break;
+            }
+        }
+    });
 
-    thread.join().unwrap();
+    // Основной цикл обработки сообщений
+    loop {
+        match rx.recv() {
+            Ok(message) => {
+                let server_lock = server.lock().expect("Ошибка блокировки сервера");
+                server_lock.broadcast_message(message);
+            }
+            Err(e) => {
+                eprintln!("Ошибка получения сообщения из канала: {}", e);
+                break;
+            }
+        }
+    }
+
+    // Ожидаем завершения потоков
+    server_thread.join().expect("Ошибка при завершении серверного потока");
+    input_thread.join().expect("Ошибка при завершении потока ввода");
 }
