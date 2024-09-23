@@ -51,8 +51,10 @@ impl Server {
 
 
     // Метод для рассылки сообщения всем клиентам и узлам
+    // Метод для рассылки сообщения всем клиентам и узлам
     pub fn broadcast_message(&self, message: String) {
         let message = format!("{}\n\r", message.trim());
+        println!("Получено сообщение для рассылки клиентам: {}", message);
 
         // Блокируем список клиентов для безопасного доступа из потоков
         let clients = self.clients.lock().expect("Не удалось заблокировать список клиентов");
@@ -83,6 +85,7 @@ impl Server {
         }
         println!("Sended message: {}", message);
     }
+
 
     // Метод для подключения к другому узлу
     pub fn connect_to_peer(&mut self, address: &str) {
