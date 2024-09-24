@@ -8,48 +8,14 @@ use crate::coin::connection::ConnectionPool;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
 
-/*
-fn main() {
-    // Инициализация общего пула соединений
-    let connection_pool1 = Arc::new(Mutex::new(ConnectionPool::new()));
-    let connection_pool2 = Arc::new(Mutex::new(ConnectionPool::new()));
-
-    // Инициализация протокола для обоих серверов
-    let p2p_protocol1 = Arc::new(P2PProtocol::new(connection_pool1.clone()));
-    let p2p_protocol2 = Arc::new(P2PProtocol::new(connection_pool2.clone()));
-
-    // Инициализация двух серверов
-    let server1 = Server::new(connection_pool1.clone(), p2p_protocol1.clone());
-    let server2 = Server::new(connection_pool2.clone(), p2p_protocol2.clone());
-
-    // Запуск первого сервера
-    thread::spawn(move || {
-        server1.listen("127.0.0.1:7878");
-    });
-
-    // Небольшая задержка для корректного запуска сервера
-    thread::sleep(Duration::from_secs(1));
-
-    // Запуск второго сервера
-    thread::spawn(move || {
-        server2.listen("127.0.0.1:7879");
-    });
-
-    // Подключение второго сервера к первому
-    thread::sleep(Duration::from_secs(2));
-    p2p_protocol2.connect_to_peer("127.0.0.1", 8888);
-
-    // Подождем, чтобы увидеть взаимодействие
-    thread::sleep(Duration::from_secs(10));
-}*/
-
 fn get_input_text(info_text: &str) -> String {
     let mut input = String::new();
-    println!("{}", info_text);
+    print!("{}: ", info_text);
+    io::stdout().flush().unwrap(); // Очищаем буфер, чтобы текст сразу отобразился в консоли
     match io::stdin().read_line(&mut input) {
         Ok(_) => input.trim().to_string(),
         Err(e) => {
-            eprintln!("Error with reading: {}", e);
+            eprintln!("Error reading input: {}", e);
             String::new()
         }
     }
@@ -59,25 +25,74 @@ fn main() {
     // Инициализация общего пула соединений
     let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
 
-    // Инициализация протокола для обоих серверов
+    // Инициализация протокола для работы с пирами
     let p2p_protocol = Arc::new(P2PProtocol::new(connection_pool.clone()));
 
-    // Инициализация двух серверов
+    // Создание и запуск сервера
     let server = Server::new(connection_pool.clone(), p2p_protocol.clone());
+    let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
 
-    let server_address= get_input_text("Введите адресс сервера: ");
-
-    // Запуск первого сервера
-    let server_thread = thread::spawn(move || {
-        server.listen(server_address.as_ref());
+    // Запуск сервера в отдельном потоке
+    let server_thread = thread::spawn({
+        let server_address = server_address.clone();
+        move || {
+            server.listen(&server_address);
+        }
     });
 
-    // Подключение второго сервера к первому
+    // Небольшая пауза для корректного запуска сервера
     thread::sleep(Duration::from_secs(1));
-    let connected= get_input_text("Выполнить подключение?[y/n]:");
-    if connected == "y" {
-        p2p_protocol.connect_to_peer("localhost", 7879);
+
+    loop {
+        // Чтение ввода пользователя для команды
+        println!("\nДоступные команды:");
+        println!("1. Подключиться к другому серверу (формат: connect <IP>:<port>)");
+        println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
+        println!("3. Выйти (exit)");
+
+        let input = get_input_text("Введите команду");
+
+        if input.starts_with("connect") {
+            // Разбираем команду подключения
+            let parts: Vec<&str> = input.split_whitespace().collect();
+            if parts.len() == 2 {
+                let address = parts[1];
+                let address_parts: Vec<&str> = address.split(':').collect();
+                if address_parts.len() == 2 {
+                    let ip = address_parts[0];
+                    if let Ok(port) = address_parts[1].parse::<u16>() {
+                        // Подключаемся к другому серверу
+                        p2p_protocol.connect_to_peer(ip, port);
+                        println!("Подключено успешно");
+                    } else {
+                        println!("Некорректный порт: {}", address_parts[1]);
+                    }
+                } else {
+                    println!("Некорректный формат адреса. Используйте: connect <IP>:<port>");
+                }
+            } else {
+                println!("Неверное количество аргументов. Используйте: connect <IP>:<port>");
+            }
+        } else if input.starts_with("broadcast") {
+            // Разбираем команду вещания
+            let parts: Vec<&str> = input.split_whitespace().collect();
+            if parts.len() > 1 {
+                let message = parts[1..].join(" ");
+                // Вещаем сообщение всем подключенным пирами
+                let mut pool = connection_pool.lock().unwrap();
+                pool.broadcast(&message);
+            } else {
+                println!("Сообщение не может быть пустым. Используйте: broadcast <сообщение>");
+            }
+        } else if input == "exit" {
+            // Выходим из программы
+            println!("Выход из программы.");
+            break;
+        } else {
+            println!("Неверная команда.");
+        }
     }
 
+    // Ожидание завершения потока сервера
     server_thread.join().unwrap();
 }
