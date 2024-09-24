@@ -26,10 +26,10 @@ fn main() {
     let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
 
     // Инициализация протокола для работы с пирами
-    let p2p_protocol = Arc::new(P2PProtocol::new(connection_pool.clone()));
+    let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone())));
 
     // Создание и запуск сервера
-    let server = Server::new(connection_pool.clone(), p2p_protocol.clone());
+    let mut server = Server::new(connection_pool.clone(), p2p_protocol.clone());
     let server_clone = Arc::new(Mutex::new(server.clone()));
     let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
 
@@ -63,7 +63,6 @@ fn main() {
                     let ip = address_parts[0];
                     if let Ok(port) = address_parts[1].parse::<u16>() {
                         // Подключаемся к другому серверу
-                        println!("Заглушка!");
                         server_clone.try_lock().unwrap().connect(ip, port);
                         // p2p_protocol.connect_to_peer(ip, port);
                     } else {
@@ -77,12 +76,11 @@ fn main() {
             }
         } else if input.starts_with("broadcast") {
             // Разбираем команду вещания
-            let parts: Vec<&str> = input.split_whitespace().collect();
+            let mut parts: Vec<&str> = input.split_whitespace().collect();
             if parts.len() > 1 {
-                let message = parts[1..].join(" ");
+                let message = input.clone();
                 // Вещаем сообщение всем подключенным пирами
-                let mut pool = connection_pool.lock().unwrap();
-                pool.broadcast(&message);
+                p2p_protocol.lock().unwrap().broadcast(&message);
             } else {
                 println!("Сообщение не может быть пустым. Используйте: broadcast <сообщение>");
             }
