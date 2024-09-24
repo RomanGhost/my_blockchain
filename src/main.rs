@@ -1,13 +1,49 @@
-use std::sync::{Arc, Mutex, TryLockError};
-use std::{io, thread};
-use std::io::Read;
-use std::time::Duration;
-use std::sync::mpsc::{self, Sender, Receiver};
-use crate::coin::server::Server;
-
 mod coin;
 
-fn get_input_text(info_text: String) -> String {
+use std::io::{self, Write, BufRead};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+use crate::coin::connection::ConnectionPool;
+use crate::coin::peers::P2PProtocol;
+use crate::coin::server::Server;
+
+/*
+fn main() {
+    // Инициализация общего пула соединений
+    let connection_pool1 = Arc::new(Mutex::new(ConnectionPool::new()));
+    let connection_pool2 = Arc::new(Mutex::new(ConnectionPool::new()));
+
+    // Инициализация протокола для обоих серверов
+    let p2p_protocol1 = Arc::new(P2PProtocol::new(connection_pool1.clone()));
+    let p2p_protocol2 = Arc::new(P2PProtocol::new(connection_pool2.clone()));
+
+    // Инициализация двух серверов
+    let server1 = Server::new(connection_pool1.clone(), p2p_protocol1.clone());
+    let server2 = Server::new(connection_pool2.clone(), p2p_protocol2.clone());
+
+    // Запуск первого сервера
+    thread::spawn(move || {
+        server1.listen("127.0.0.1:7878");
+    });
+
+    // Небольшая задержка для корректного запуска сервера
+    thread::sleep(Duration::from_secs(1));
+
+    // Запуск второго сервера
+    thread::spawn(move || {
+        server2.listen("127.0.0.1:7879");
+    });
+
+    // Подключение второго сервера к первому
+    thread::sleep(Duration::from_secs(2));
+    p2p_protocol2.connect_to_peer("127.0.0.1", 8888);
+
+    // Подождем, чтобы увидеть взаимодействие
+    thread::sleep(Duration::from_secs(10));
+}*/
+
+fn get_input_text(info_text: &str) -> String {
     let mut input = String::new();
     println!("{}", info_text);
     match io::stdin().read_line(&mut input) {
@@ -19,103 +55,29 @@ fn get_input_text(info_text: String) -> String {
     }
 }
 
-fn try_lock_with_retry<T>(
-    mutex: &Arc<Mutex<T>>,
-    retries: usize,
-    delay: Duration,
-) -> Option<std::sync::MutexGuard<T>> {
-    for _ in 0..retries {
-        match mutex.try_lock() {
-            Ok(guard) => return Some(guard),
-            Err(TryLockError::WouldBlock) => {
-                thread::sleep(delay); // Ждём перед новой попыткой
-            }
-            Err(_) => {
-                eprintln!("Failed to acquire lock");
-                return None;
-            }
-        }
-    }
-    None
-}
-
 fn main() {
-    let server = Arc::new(Mutex::new(Server::new()));
-    let server_clone = Arc::clone(&server);
-    let server_clone_broadcast = Arc::clone(&server);
+    // Инициализация общего пула соединений
+    let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
 
-    let server_address: String = get_input_text("Введите адрес сервера (ip:port):".to_string());
-    let connect = get_input_text("Выполнить подключение к серверам?[y/n]".to_string());
+    // Инициализация протокола для обоих серверов
+    let p2p_protocol = Arc::new(P2PProtocol::new(connection_pool.clone()));
 
-    // Создаем канал для передачи сообщений между потоками
-    let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+    // Инициализация двух серверов
+    let server = Server::new(connection_pool.clone(), p2p_protocol.clone());
 
-    // Поток для запуска сервера
-    let server_run_thread = thread::spawn(move || {
-        let mut server_lock = server_clone.lock().unwrap();
-        println!("Сервер запускается на адресе: {}", server_address);
-        server_lock.run(server_address);  // <-- Сервер запускается, освобождаем мьютекс позже
+    let server_address= get_input_text("Введите адресс сервера: ");
+
+    // Запуск первого сервера
+    let server_thread = thread::spawn(move || {
+        server.listen(server_address.as_ref());
     });
 
-    // Поток для обработки сообщений из канала
-    let server_message_thread = thread::spawn(move || {
-        loop {
-            match rx.recv() {
-                Ok(message) => {
-                    println!("Сообщение получено в поток: {}", message);
-
-                    // Повторно захватываем блокировку для отправки сообщений
-                    let mut server_lock = match server_clone_broadcast.lock() {
-                        Ok(c) => c,
-                        Err(e) => {
-                            eprintln!("Ошибка блокировки сервера для отправки сообщения: {}", e);
-                            continue;
-                        }
-                    };
-
-                    // Рассылаем сообщение клиентам и узлам
-                    server_lock.broadcast_message(message);
-                }
-                Err(_) => {
-                    eprintln!("Канал закрыт. Завершение работы потока.");
-                    break;
-                }
-            }
-        }
-    });
-
-    // Подключение к пирам
-    if connect == "y" {
-        let peer_addresses = vec!["localhost:7879", "localhost:7877"];
-        for peer in peer_addresses {
-            let server_lock = try_lock_with_retry(&server, 5, Duration::from_millis(100));
-            if let Some(mut server) = server_lock {
-                server.connect_to_peer(peer);
-            } else {
-                eprintln!("Couldn't acquire lock for peer connection: {}", peer);
-            }
-        }
+    // Подключение второго сервера к первому
+    thread::sleep(Duration::from_secs(1));
+    let connected= get_input_text("Выполнить подключение?[y/n]:");
+    if connected == "y" {
+        p2p_protocol.connect_to_peer("localhost", 7879);
     }
 
-    // Цикл для ввода сообщений
-    loop {
-        let input = get_input_text("Введите сообщение (или 'quit' для выхода):".to_string());
-        if input == "quit" {
-            break;
-        }
-
-        // Передаем сообщение в поток обработки через канал
-        if let Err(e) = tx.send(input.clone()) {
-            eprintln!("Ошибка отправки сообщения через канал: {}", e);
-        }
-
-        thread::sleep(Duration::from_millis(100));
-    }
-
-    // Закрываем канал, сигнализируя потоку завершить работу
-    drop(tx);
-
-    // Ожидаем завершения серверного потока
-    server_run_thread.join().unwrap();
-    server_message_thread.join().unwrap();
+    server_thread.join().unwrap();
 }
