@@ -19,7 +19,7 @@ impl Server {
         }
     }
 
-    pub fn listen(&self, address: &str) {
+    pub fn run(&self, address: &str) {
         let listener = TcpListener::bind(address).expect("Could not bind to address");
         println!("Server listening on {}", address);
 
@@ -78,6 +78,7 @@ fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_po
                 let message = String::from_utf8_lossy(&buffer[..]);
                 println!("Received message from {}: {}", peer_address, message);
                 p2p_protocol.handle_message(&message, &peer_address, stream);
+                // connection_pool.lock().unwrap().broadcast(&message);
                 buffer = [0; 512];
             }
             Err(e) => {

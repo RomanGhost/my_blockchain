@@ -37,7 +37,7 @@ fn main() {
     let server_thread = thread::spawn({
         let server_address = server_address.clone();
         move || {
-            server.listen(&server_address);
+            server.run(&server_address);
         }
     });
 
