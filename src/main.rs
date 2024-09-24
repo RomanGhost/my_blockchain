@@ -63,7 +63,6 @@ fn main() {
                     if let Ok(port) = address_parts[1].parse::<u16>() {
                         // Подключаемся к другому серверу
                         p2p_protocol.connect_to_peer(ip, port);
-                        println!("Подключено успешно");
                     } else {
                         println!("Некорректный порт: {}", address_parts[1]);
                     }
