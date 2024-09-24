@@ -1,10 +1,11 @@
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::thread;
 use crate::coin::connection::ConnectionPool;
 use crate::coin::peers::P2PProtocol;
 
+#[derive(Clone)]
 pub struct Server {
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<P2PProtocol>,
@@ -38,6 +39,26 @@ impl Server {
                 Err(e) => {
                     eprintln!("Failed to accept a connection: {:?}", e);
                 }
+            }
+        }
+    }
+
+    pub fn connect(&self, ip: &str, port: u16) {
+        match TcpStream::connect((ip, port)) {
+            Ok(mut stream) => {
+                println!("Успешно подключено к {}:{}", ip, port);
+                let connection_pool = self.connection_pool.clone();
+                let p2p_protocol = self.p2p_protocol.clone();
+
+                let peer_address = stream.peer_addr().unwrap().to_string();
+                connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
+
+                thread::spawn(move || {
+                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol);
+                });
+            }
+            Err(e) => {
+                eprintln!("Не удалось подключиться: {:?}", e);
             }
         }
     }

@@ -30,6 +30,7 @@ fn main() {
 
     // Создание и запуск сервера
     let server = Server::new(connection_pool.clone(), p2p_protocol.clone());
+    let server_clone = Arc::new(Mutex::new(server.clone()));
     let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
 
     // Запуск сервера в отдельном потоке
@@ -62,7 +63,9 @@ fn main() {
                     let ip = address_parts[0];
                     if let Ok(port) = address_parts[1].parse::<u16>() {
                         // Подключаемся к другому серверу
-                        p2p_protocol.connect_to_peer(ip, port);
+                        println!("Заглушка!");
+                        server_clone.try_lock().unwrap().connect(ip, port);
+                        // p2p_protocol.connect_to_peer(ip, port);
                     } else {
                         println!("Некорректный порт: {}", address_parts[1]);
                     }
