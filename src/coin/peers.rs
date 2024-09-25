@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 use std::net::TcpStream;
 use crate::coin::connection::ConnectionPool;
+use crate::coin::message::{BlockMessage, Message, TextMessage, TransactionMessage};
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -17,37 +18,33 @@ impl P2PProtocol {
         }
     }
 
-    pub fn handle_message(&mut self, message: &str, peer_address: &str, stream: &mut TcpStream) {
-        let message = message.trim();
-        let mut id_message = 0;
-        if let Some(first_part) = message.split_whitespace().next() {
-            // Пробуем преобразовать первую часть в число
-            if let Ok(number) = first_part.parse::<u64>() {
-                id_message = number;
-            } else {
-                eprintln!("Не удалось преобразовать в число: {first_part}, {message}");
+    pub fn handle_message(&mut self, message_json: &str) {
+        let message_json = message_json.trim_end_matches('\0');
+
+        match Message::from_json(message_json) {
+            Ok(message) => {
+                if message.get_id() < self.last_message_id{
+                    return;
+                }
+                // Обрабатываем разные варианты сообщений
+                match message {
+                    Message::BlockMessage(block_msg) => {
+                        println!("Received BlockMessage with id: {}", block_msg.get_id());
+                        // Здесь можно добавить логику для работы с BlockMessage
+                    }
+                    Message::TransactionMessage(tx_msg) => {
+                        println!("Received TransactionMessage with id: {}", tx_msg.get_id());
+                        // Здесь можно добавить логику для работы с TransactionMessage
+                    }
+                    Message::TextMessage(text_msg) => {
+                        self.handle_text(text_msg);
+                        // Здесь можно добавить логику для работы с TextMessage
+                    }
+                }
             }
-        }
-
-        if id_message < self.last_message_id{
-            return;
-        }
-
-        // TODO преобразовать это в функцию
-        let parts: Vec<&str> = message.split_whitespace().collect();
-        let text_message = parts[2..].join(" ");
-        println!(">- Get message [{peer_address}]: {text_message}");
-
-        if message.contains("ping") {
-            self.handle_ping(peer_address, stream);
-        } else if message.contains("broadcast") {
-            self.handle_broadcast(message);
-        } else if message.contains("block") {
-            self.handle_block(message, stream);
-        } else if message.contains("transaction") {
-            self.handle_transaction(message, stream);
-        } else if message.contains("peers") {
-            self.handle_peers(stream);
+            Err(e) => {
+                eprintln!("Failed to deserialize message: {}", e);
+            }
         }
         self.last_message_id+=1;
     }
@@ -58,24 +55,26 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
-    fn handle_broadcast(&mut self, message: &str) {
-        // Вызываем функцию broadcast для передачи сообщения всем подключенным пирами
+    fn handle_text(&mut self, message: TextMessage) {
+        let message_text = message.get_text();
+        println!(">- {message_text}");
+        let new_message = Message::TextMessage(message);
 
-        let parts: Vec<&str> = message.split_whitespace().collect();
-        let message = parts[1..].join(" ");
-        // println!("Broadcasting message: {}", message);
-        // message.
-        self.broadcast(message.as_ref());
+        self.broadcast(new_message);
     }
 
-    fn handle_block(&self, message: &str, stream: &mut TcpStream) {
-        println!("Handling block: {}", message);
-        stream.write_all(message.as_bytes()).unwrap();
+    fn handle_block(&mut self, message: BlockMessage) {
+        println!("Handling block: {}", message.get_id());
+        let new_message = Message::BlockMessage(message);
+
+        self.broadcast(new_message);
     }
 
-    fn handle_transaction(&self, message: &str, stream: &mut TcpStream) {
-        println!("Handling transaction: {}", message);
-        stream.write_all(message.as_bytes()).unwrap();
+    fn handle_transaction(&mut self, message: TransactionMessage) {
+        println!("Handling transaction: {}", message.get_id());
+        let new_message = Message::TransactionMessage(message);
+
+        self.broadcast(new_message);
     }
 
     fn handle_peers(&self, stream: &mut TcpStream) {
@@ -86,10 +85,12 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
-    pub fn broadcast(&mut self, message:&str){
-        let new_message = format!("{} {}", self.last_message_id, message);
+    pub fn broadcast(&mut self, mut message:Message){
+        message.set_id(self.last_message_id);
         let mut connection_pool = self.connection_pool.lock().unwrap();
+        let serialize_message = message.to_json();
         self.last_message_id += 1;
-        connection_pool.broadcast(new_message.as_ref());
+
+        connection_pool.broadcast(serialize_message.as_ref());
     }
 }

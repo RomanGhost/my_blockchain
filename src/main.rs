@@ -1,12 +1,13 @@
 mod coin;
 
-use std::io::{self, Write, BufRead};
+use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use crate::coin::connection::ConnectionPool;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
+use crate::coin::message;
 
 fn get_input_text(info_text: &str) -> String {
     let mut input = String::new();
@@ -76,16 +77,18 @@ fn main() {
             }
         } else if input.starts_with("broadcast") {
             // Разбираем команду вещания
-            let mut parts: Vec<&str> = input.split_whitespace().collect();
+            let parts: Vec<&str> = input.split_whitespace().collect();
             if parts.len() > 1 {
-                let message = input.clone();
+                let message = parts[1..].join(" ");
+                let text_message = message::TextMessage::new(message);
+                let message = message::Message::TextMessage(text_message);
+
                 // Вещаем сообщение всем подключенным пирами
-                p2p_protocol.lock().unwrap().broadcast(&message);
+                p2p_protocol.lock().unwrap().broadcast(message);
             } else {
                 println!("Сообщение не может быть пустым. Используйте: broadcast <сообщение>");
             }
         } else if input == "exit" {
-            // Выходим из программы
             println!("Выход из программы.");
             break;
         } else {

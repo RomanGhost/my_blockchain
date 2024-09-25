@@ -35,7 +35,7 @@ impl ConnectionPool {
     pub fn broadcast(&mut self, message: &str) {
         for (address, stream) in self.peers.iter_mut() {
             match stream.write_all(message.as_bytes()) {
-                Ok(_) => println!("Broadcasted message to {}", address),
+                Ok(_) => {},//println!("Broadcasted message to {}", address),
                 Err(e) => eprintln!("Failed to send message to {}: {}", address, e),
             }
         }

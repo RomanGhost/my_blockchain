@@ -48,7 +48,7 @@ impl Server {
             Ok(mut stream) => {
                 println!("Успешно подключено к {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
-                let mut p2p_protocol = self.p2p_protocol.clone();
+                let p2p_protocol = self.p2p_protocol.clone();
 
                 let peer_address = stream.peer_addr().unwrap().to_string();
                 connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
@@ -64,7 +64,7 @@ impl Server {
     }
 }
 
-fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, mut p2p_protocol: Arc<Mutex<P2PProtocol>>) {
+fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) {
     let mut buffer = [0; 512];
 
     loop {
@@ -77,8 +77,8 @@ fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_po
             Ok(_) => {
                 let message = String::from_utf8_lossy(&buffer[..]);
                 // println!("Received message from {}: {}", peer_address, message);
-                // todo!("Нормально обработать ошибки")
-                p2p_protocol.try_lock().unwrap().handle_message(&message, &peer_address, stream);
+                //TODO Нормально обработать ошибки
+                p2p_protocol.lock().unwrap().handle_message(&message);
                 // connection_pool.lock().unwrap().broadcast(&message);
                 buffer = [0; 512];
             }
