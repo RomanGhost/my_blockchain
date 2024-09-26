@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha512};
 
 use crate::coin::blockchain::block::Block;
@@ -13,6 +14,22 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, block:Block){
+        if block.get_previous_hash() == self.get_last_block().unwrap().get_hash() {
+            self.chain.push(block);
+        }
+    }
+
+    pub fn force_add_block(&mut self, block:Block){
+        let mut block = block;
+        match self.get_last_block(){
+            Ok(last_block) =>{
+                block.set_previous_hash(last_block.get_hash());
+            }
+            Err(e)=>{
+                eprintln!("Error adding block: {e}");
+            }
+        };
+
         self.chain.push(block);
     }
 
@@ -56,11 +73,11 @@ impl Blockchain {
     }
 
     fn _proof_of_work(&mut self, last_block:Block){
-        let mut i:u64 = 1;
+        let mut i:u64 = 0;
         let last_block_hash = last_block.get_hash();
 
         loop{
-            let block = Block::new(self.chain.len(), vec![], last_block_hash.clone(), last_block.get_nonce()+i);
+            let block = Block::new(last_block.get_id(), vec![], last_block_hash.clone(), last_block.get_nonce()+i);
             if self.valid_block(&block){
                 println!("{}", i);
                 self.chain.push(block);
@@ -68,6 +85,14 @@ impl Blockchain {
             }
             i += 1;
         };
+    }
 
+    pub fn get_blocks_after(&self, datetime: DateTime<Utc>) -> Vec<Block> {
+        let result: Vec<Block> = self.chain
+            .iter()
+            .filter(|&block| datetime < block.get_datetime()) // Фильтруем блоки по дате
+            .cloned() // Преобразуем `&Block` в `Block` с помощью `cloned`
+            .collect(); // Собираем результат в `Vec<Block>`
+        result
     }
 }

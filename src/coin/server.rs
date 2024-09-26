@@ -1,8 +1,10 @@
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, mpsc, Mutex};
 use std::io::Read;
+use std::sync::mpsc::Receiver;
 use std::thread;
 use crate::coin::connection::ConnectionPool;
+use crate::coin::message::Message;
 use crate::coin::peers::P2PProtocol;
 
 #[derive(Clone)]
@@ -12,11 +14,16 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) -> Self {
-        Server {
+    pub fn new() -> (Self, Receiver<Message>) {
+        let (tx, rx) = mpsc::channel();
+        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
+        // Инициализация протокола для работы с пирами
+        let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
+
+        (Server {
             connection_pool,
             p2p_protocol,
-        }
+        }, rx)
     }
 
     pub fn run(&mut self, address: &str) {
@@ -62,6 +69,10 @@ impl Server {
             }
         }
     }
+
+    pub fn get_peer_protocol(&self) -> Arc<Mutex<P2PProtocol>> {
+        self.p2p_protocol.clone()
+    }
 }
 
 fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) {
@@ -76,10 +87,10 @@ fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_po
             }
             Ok(_) => {
                 let message = String::from_utf8_lossy(&buffer[..]);
-                // println!("Received message from {}: {}", peer_address, message);
+                // println!("Received response_message from {}: {}", peer_address, response_message);
                 //TODO Нормально обработать ошибки
                 p2p_protocol.lock().unwrap().handle_message(&message);
-                // connection_pool.lock().unwrap().broadcast(&message);
+                // connection_pool.lock().unwrap().broadcast(&response_message);
                 buffer = [0; 512];
             }
 

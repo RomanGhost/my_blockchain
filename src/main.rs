@@ -4,10 +4,10 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use crate::coin::connection::ConnectionPool;
-use crate::coin::peers::P2PProtocol;
+use crate::coin::blockchain::blockchain::Blockchain;
 use crate::coin::server::Server;
 use crate::coin::message;
+use crate::coin::message::MessageType;
 
 fn get_input_text(info_text: &str) -> String {
     let mut input = String::new();
@@ -23,14 +23,10 @@ fn get_input_text(info_text: &str) -> String {
 }
 
 fn main() {
-    // Инициализация общего пула соединений
-    let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
-
-    // Инициализация протокола для работы с пирами
-    let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone())));
-
     // Создание и запуск сервера
-    let mut server = Server::new(connection_pool.clone(), p2p_protocol.clone());
+    let (mut server, rx) = Server::new();
+    let p2p_protocol = server.get_peer_protocol();
+
     let server_clone = Arc::new(Mutex::new(server.clone()));
     let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
 
@@ -39,6 +35,16 @@ fn main() {
         let server_address = server_address.clone();
         move || {
             server.run(&server_address);
+        }
+    });
+
+    let blockchain = Blockchain::new();
+
+    // получение сообщений от серверов
+    let receiver_thread = thread::spawn(move || {
+        for received in rx {
+            let message_type = received.get_type();
+            println!("> Received: {:?}{:?}", received, message_type);
         }
     });
 
@@ -65,7 +71,6 @@ fn main() {
                     if let Ok(port) = address_parts[1].parse::<u16>() {
                         // Подключаемся к другому серверу
                         server_clone.try_lock().unwrap().connect(ip, port);
-                        // p2p_protocol.connect_to_peer(ip, port);
                     } else {
                         println!("Некорректный порт: {}", address_parts[1]);
                     }
@@ -95,7 +100,6 @@ fn main() {
             println!("Неверная команда.");
         }
     }
-
-    // Ожидание завершения потока сервера
+    receiver_thread.join().unwrap();
     server_thread.join().unwrap();
 }

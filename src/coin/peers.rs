@@ -2,19 +2,22 @@
 use std::sync::{Arc, Mutex};
 use std::io::Write;
 use std::net::TcpStream;
+use std::sync::mpsc::Sender;
 use crate::coin::connection::ConnectionPool;
-use crate::coin::message::{BlockMessage, Message, TextMessage, TransactionMessage};
+use crate::coin::message::message::{BlockMessage, Message, TextMessage, TransactionMessage};
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
     last_message_id:u64,
+    sender:Sender<Message>,
 }
 
 impl P2PProtocol {
-    pub fn new(connection_pool: Arc<Mutex<ConnectionPool>>) -> Self {
+    pub fn new(connection_pool: Arc<Mutex<ConnectionPool>>, sender: Sender<Message>) -> Self {
         P2PProtocol {
             connection_pool,
             last_message_id:0,
+            sender,
         }
     }
 
@@ -23,30 +26,35 @@ impl P2PProtocol {
 
         match Message::from_json(message_json) {
             Ok(message) => {
-                if message.get_id() < self.last_message_id{
+                let message_id = message.get_id();
+                if message_id < self.last_message_id{
                     return;
                 }
-                // Обрабатываем разные варианты сообщений
-                match message {
-                    Message::BlockMessage(block_msg) => {
-                        println!("Received BlockMessage with id: {}", block_msg.get_id());
-                        // Здесь можно добавить логику для работы с BlockMessage
-                    }
-                    Message::TransactionMessage(tx_msg) => {
-                        println!("Received TransactionMessage with id: {}", tx_msg.get_id());
-                        // Здесь можно добавить логику для работы с TransactionMessage
-                    }
-                    Message::TextMessage(text_msg) => {
-                        self.handle_text(text_msg);
-                        // Здесь можно добавить логику для работы с TextMessage
-                    }
+                else{
+                    self.last_message_id = message_id;
                 }
+
+                self.broadcast(message);
+                // Обрабатываем разные варианты сообщений
+                // match message_.get_type() {
+                //     Message::BlockMessage(block_msg) => {
+                //         dbg!("Received BlockMessage with id: {}", block_msg.get_id());
+                //         // Здесь можно добавить логику для работы с BlockMessage
+                //     }
+                //     Message::TransactionMessage(tx_msg) => {
+                //         dbg!("Received TransactionMessage with id: {}", tx_msg.get_id());
+                //         // Здесь можно добавить логику для работы с TransactionMessage
+                //     }
+                //     Message::TextMessage(text_msg) => {
+                //         self.handle_text(text_msg);
+                //         // Здесь можно добавить логику для работы с TextMessage
+                //     }
+                // }
             }
             Err(e) => {
-                eprintln!("Failed to deserialize message: {}", e);
+                eprintln!("Failed to deserialize response_message: {}", e);
             }
         }
-        self.last_message_id+=1;
     }
 
     fn handle_ping(&self, peer_address: &str, stream: &mut TcpStream) {
@@ -56,14 +64,20 @@ impl P2PProtocol {
     }
 
     fn handle_text(&mut self, message: TextMessage) {
-        let message_text = message.get_text();
-        println!(">- {message_text}");
         let new_message = Message::TextMessage(message);
+        self.sender.send(new_message.clone()).unwrap();
 
         self.broadcast(new_message);
     }
 
     fn handle_block(&mut self, message: BlockMessage) {
+        println!("Handling block: {}", message.get_id());
+        let new_message = Message::BlockMessage(message);
+
+        self.broadcast(new_message);
+    }
+
+    fn handle_force_block(&mut self, message: BlockMessage) {
         println!("Handling block: {}", message.get_id());
         let new_message = Message::BlockMessage(message);
 
@@ -86,7 +100,9 @@ impl P2PProtocol {
     }
 
     pub fn broadcast(&mut self, mut message:Message){
+        self.sender.send(message.clone()).unwrap();
         message.set_id(self.last_message_id);
+
         let mut connection_pool = self.connection_pool.lock().unwrap();
         let serialize_message = message.to_json();
         self.last_message_id += 1;

@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::coin::blockchain::transaction::Transaction;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block{
     id:usize,
     time_create: DateTime<Utc>,
@@ -53,5 +53,21 @@ impl Block{
 
     pub fn to_json(&self) -> String{
         serde_json::to_string(&self).unwrap()
+    }
+
+    pub fn get_previous_hash(&self) -> String {
+        self.previous_hash.clone()
+    }
+
+    pub fn get_id(&self) -> usize{
+        self.id
+    }
+
+    pub fn get_datetime(&self) -> DateTime<Utc> {
+        self.time_create
+    }
+
+    pub fn set_previous_hash(&mut self, last_hash:String){
+        self.previous_hash = last_hash;
     }
 }
