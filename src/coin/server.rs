@@ -78,6 +78,8 @@ impl Server {
 fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) {
     let mut buffer = [0; 512];
 
+    p2p_protocol.lock().unwrap().request_first_message();
+
     loop {
         match stream.read(&mut buffer) {
             Ok(0) => {

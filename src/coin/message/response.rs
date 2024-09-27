@@ -94,3 +94,22 @@ impl TextMessage {
         self.message.clone()
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MessageAnswerFirstInfo {
+    id: u64
+}
+
+impl MessageAnswerFirstInfo {
+    pub fn new() -> MessageAnswerFirstInfo {
+        MessageAnswerFirstInfo{ id: 0, }
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn set_id(&mut self, id: u64) {
+        self.id = id;
+    }
+}

@@ -24,7 +24,7 @@ fn get_input_text(info_text: &str) -> String {
 
 fn main() {
     // Создание и запуск сервера
-    let (mut server, rx) = Server::new();
+    let (mut server, rx_server) = Server::new();
     let p2p_protocol = server.get_peer_protocol();
     let p2p_protocol_message = server.get_peer_protocol();
 
@@ -39,29 +39,29 @@ fn main() {
         }
     });
 
-    let mut blockchain = Blockchain::new();
+    let mut blockchain:Blockchain = Blockchain::new();
 
     // получение сообщений от серверов
     let receiver_thread = thread::spawn(move || {
-        for received in rx {
+        for received in rx_server {
             let message = received;
             match message{
-                Message::LastNBlocksMessage(message) => {
+                Message::RequestLastNBlocksMessage(message) => {
                     let n = message.get_n();
                     let blocks = blockchain.get_last_n_blocks(n);
 
                     for block in blocks{
-                        p2p_protocol_message.lock().unwrap().handle_block(block, true, false);
+                        p2p_protocol_message.lock().unwrap().response_block(block, true, false);
                     }
                 }
-                Message::BlocksBeforeMessage(message) => {
+                Message::RequestBlocksBeforeMessage(message) => {
                     let time = message.get_time();
                     let blocks = blockchain.get_blocks_after(time);
                     for block in blocks{
-                        p2p_protocol_message.lock().unwrap().handle_block(block, true, false);
+                        p2p_protocol_message.lock().unwrap().response_block(block, true, false);
                     }
                 }
-                Message::BlockMessage(message) => {
+                Message::ResponseBlockMessage(message) => {
                     let is_force_block = message.is_force();
                     if is_force_block {
                         blockchain.add_force_block(message.get_block());
@@ -69,11 +69,12 @@ fn main() {
                         blockchain.add_block(message.get_block());
                     }
                 }
-                Message::TransactionMessage(_) => {}
-                Message::TextMessage(message) => {
+                Message::ResponseTransactionMessage(_) => {}
+                Message::ResponseTextMessage(message) => {
                     let text = message.get_text();
                     println!("New message > {}", text);
                 }
+                (_)=>{eprintln!("Неизвестный тип сообщения");}
             };
         }
     });
@@ -117,7 +118,7 @@ fn main() {
             if parts.len() > 1 {
                 let message = parts[1..].join(" ");
                 // Вещаем сообщение всем подключенным пирами
-                p2p_protocol.lock().unwrap().handle_text(message, false);
+                p2p_protocol.lock().unwrap().response_text(message, false);
             } else {
                 println!("Сообщение не может быть пустым. Используйте: broadcast <сообщение>");
             }
@@ -134,7 +135,7 @@ fn main() {
                 }
             }
             let new_block = Block::new(block_id, vec![], format!("Hash: {block_id}"), 0);
-            p2p_protocol.lock().unwrap().handle_block(new_block, is_force_block, false);
+            p2p_protocol.lock().unwrap().response_block(new_block, is_force_block, false);
             block_id += 1;
         }
         else {

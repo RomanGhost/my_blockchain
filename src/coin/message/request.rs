@@ -50,3 +50,23 @@ impl BlocksBeforeMessage {
         self.time_stamp
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MessageFirstInfo {
+    id: u64
+}
+
+impl MessageFirstInfo {
+    pub fn new() -> MessageFirstInfo {
+        MessageFirstInfo { id: 0, }
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn set_id(&mut self, id: u64) {
+        self.id = id;
+    }
+}
+
