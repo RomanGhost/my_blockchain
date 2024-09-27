@@ -3,8 +3,12 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
+use crate::coin::blockchain::block::Block;
+use crate::coin::blockchain::transaction::Transaction;
 use crate::coin::connection::ConnectionPool;
-use crate::coin::message::message::{BlockMessage, Message, TextMessage, TransactionMessage};
+use crate::coin::message::r#type::Message;
+use crate::coin::message::response;
+
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -27,29 +31,15 @@ impl P2PProtocol {
         match Message::from_json(message_json) {
             Ok(message) => {
                 let message_id = message.get_id();
+
                 if message_id < self.last_message_id{
-                    return;
-                }
-                else{
+                    return
+                }else{
                     self.last_message_id = message_id;
                 }
 
-                self.broadcast(message);
-                // Обрабатываем разные варианты сообщений
-                // match message_.get_type() {
-                //     Message::BlockMessage(block_msg) => {
-                //         dbg!("Received BlockMessage with id: {}", block_msg.get_id());
-                //         // Здесь можно добавить логику для работы с BlockMessage
-                //     }
-                //     Message::TransactionMessage(tx_msg) => {
-                //         dbg!("Received TransactionMessage with id: {}", tx_msg.get_id());
-                //         // Здесь можно добавить логику для работы с TransactionMessage
-                //     }
-                //     Message::TextMessage(text_msg) => {
-                //         self.handle_text(text_msg);
-                //         // Здесь можно добавить логику для работы с TextMessage
-                //     }
-                // }
+                self.sender.send(message.clone()).unwrap();
+                self.broadcast(message, true);
             }
             Err(e) => {
                 eprintln!("Failed to deserialize response_message: {}", e);
@@ -63,32 +53,24 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
-    fn handle_text(&mut self, message: TextMessage) {
-        let new_message = Message::TextMessage(message);
-        self.sender.send(new_message.clone()).unwrap();
+    pub fn handle_text(&mut self, message: String, receive:bool) {
+        let response_message = response::TextMessage::new(message);
+        let response_message = Message::TextMessage(response_message);
 
-        self.broadcast(new_message);
+        self.broadcast(response_message, receive);
     }
 
-    fn handle_block(&mut self, message: BlockMessage) {
-        println!("Handling block: {}", message.get_id());
-        let new_message = Message::BlockMessage(message);
+    pub fn handle_block(&mut self, block: Block, force:bool, receive:bool) {
+        let response_message = response::BlockMessage::new(block, force);
+        let response_message = Message::BlockMessage(response_message);
 
-        self.broadcast(new_message);
+        self.broadcast(response_message, receive);
     }
+    fn handle_transaction(&mut self, message: Transaction, receive:bool) {
+        let response_message = response::TransactionMessage::new(message);
+        let response_message = Message::TransactionMessage(response_message);
 
-    fn handle_force_block(&mut self, message: BlockMessage) {
-        println!("Handling block: {}", message.get_id());
-        let new_message = Message::BlockMessage(message);
-
-        self.broadcast(new_message);
-    }
-
-    fn handle_transaction(&mut self, message: TransactionMessage) {
-        println!("Handling transaction: {}", message.get_id());
-        let new_message = Message::TransactionMessage(message);
-
-        self.broadcast(new_message);
+        self.broadcast(response_message, receive);
     }
 
     fn handle_peers(&self, stream: &mut TcpStream) {
@@ -99,13 +81,14 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
-    pub fn broadcast(&mut self, mut message:Message){
-        self.sender.send(message.clone()).unwrap();
+    pub fn broadcast(&mut self, mut message:Message, receive:bool){
         message.set_id(self.last_message_id);
+        if !receive {
+            self.last_message_id += 1;
+        }
 
         let mut connection_pool = self.connection_pool.lock().unwrap();
         let serialize_message = message.to_json();
-        self.last_message_id += 1;
 
         connection_pool.broadcast(serialize_message.as_ref());
     }

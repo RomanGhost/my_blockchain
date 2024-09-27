@@ -14,12 +14,20 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, block:Block){
-        if block.get_previous_hash() == self.get_last_block().unwrap().get_hash() {
-            self.chain.push(block);
-        }
+        let mut block = block;
+        match self.get_last_block(){
+            Ok(last_block) =>{
+                if block.get_previous_hash() == last_block.get_hash() {
+                    self.chain.push(block);
+                }
+            }
+            Err(e)=>{
+                eprintln!("Error adding block: {e}");
+            }
+        };
     }
 
-    pub fn force_add_block(&mut self, block:Block){
+    pub fn add_force_block(&mut self, block:Block){
         let mut block = block;
         match self.get_last_block(){
             Ok(last_block) =>{
@@ -27,6 +35,7 @@ impl Blockchain {
             }
             Err(e)=>{
                 eprintln!("Error adding block: {e}");
+
             }
         };
 
@@ -94,5 +103,10 @@ impl Blockchain {
             .cloned() // Преобразуем `&Block` в `Block` с помощью `cloned`
             .collect(); // Собираем результат в `Vec<Block>`
         result
+    }
+
+    pub fn get_last_n_blocks(&self, n:usize) -> Vec<Block> {
+        let last_n = &self.chain[self.chain.len().saturating_sub(n)..];
+        last_n.iter().cloned().collect()
     }
 }

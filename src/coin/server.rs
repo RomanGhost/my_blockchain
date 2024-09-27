@@ -4,7 +4,7 @@ use std::io::Read;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use crate::coin::connection::ConnectionPool;
-use crate::coin::message::Message;
+use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 
 #[derive(Clone)]

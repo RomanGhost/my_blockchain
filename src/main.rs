@@ -4,10 +4,10 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::blockchain::Blockchain;
+use crate::coin::message::r#type::Message;
 use crate::coin::server::Server;
-use crate::coin::message;
-use crate::coin::message::MessageType;
 
 fn get_input_text(info_text: &str) -> String {
     let mut input = String::new();
@@ -26,6 +26,7 @@ fn main() {
     // Создание и запуск сервера
     let (mut server, rx) = Server::new();
     let p2p_protocol = server.get_peer_protocol();
+    let p2p_protocol_message = server.get_peer_protocol();
 
     let server_clone = Arc::new(Mutex::new(server.clone()));
     let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
@@ -38,28 +39,58 @@ fn main() {
         }
     });
 
-    let blockchain = Blockchain::new();
+    let mut blockchain = Blockchain::new();
 
     // получение сообщений от серверов
     let receiver_thread = thread::spawn(move || {
         for received in rx {
-            let message_type = received.get_type();
-            println!("> Received: {:?}{:?}", received, message_type);
+            let message = received;
+            match message{
+                Message::LastNBlocksMessage(message) => {
+                    let n = message.get_n();
+                    let blocks = blockchain.get_last_n_blocks(n);
+
+                    for block in blocks{
+                        p2p_protocol_message.lock().unwrap().handle_block(block, true, false);
+                    }
+                }
+                Message::BlocksBeforeMessage(message) => {
+                    let time = message.get_time();
+                    let blocks = blockchain.get_blocks_after(time);
+                    for block in blocks{
+                        p2p_protocol_message.lock().unwrap().handle_block(block, true, false);
+                    }
+                }
+                Message::BlockMessage(message) => {
+                    let is_force_block = message.is_force();
+                    if is_force_block {
+                        blockchain.add_force_block(message.get_block());
+                    }else{
+                        blockchain.add_block(message.get_block());
+                    }
+                }
+                Message::TransactionMessage(_) => {}
+                Message::TextMessage(message) => {
+                    let text = message.get_text();
+                    println!("New message > {}", text);
+                }
+            };
         }
     });
 
     // Небольшая пауза для корректного запуска сервера
     thread::sleep(Duration::from_secs(1));
+    let mut block_id = 0;
 
     loop {
         // Чтение ввода пользователя для команды
         println!("\nДоступные команды:");
         println!("1. Подключиться к другому серверу (формат: connect <IP>:<port>)");
         println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
-        println!("3. Выйти (exit)");
+        println!("3. Добавить блок (block)");
+        println!("4. Выйти (exit)");
 
         let input = get_input_text("Введите команду");
-
         if input.starts_with("connect") {
             // Разбираем команду подключения
             let parts: Vec<&str> = input.split_whitespace().collect();
@@ -85,18 +116,28 @@ fn main() {
             let parts: Vec<&str> = input.split_whitespace().collect();
             if parts.len() > 1 {
                 let message = parts[1..].join(" ");
-                let text_message = message::TextMessage::new(message);
-                let message = message::Message::TextMessage(text_message);
-
                 // Вещаем сообщение всем подключенным пирами
-                p2p_protocol.lock().unwrap().broadcast(message);
+                p2p_protocol.lock().unwrap().handle_text(message, false);
             } else {
                 println!("Сообщение не может быть пустым. Используйте: broadcast <сообщение>");
             }
         } else if input == "exit" {
             println!("Выход из программы.");
             break;
-        } else {
+        } else if input.starts_with("block"){
+            let parts: Vec<&str> = input.split_whitespace().collect();
+            let mut is_force_block = false;
+            if parts.len() >= 2 {
+                let part = parts[1];
+                if part.trim().to_lowercase() == "true"{
+                    is_force_block = true;
+                }
+            }
+            let new_block = Block::new(block_id, vec![], format!("Hash: {block_id}"), 0);
+            p2p_protocol.lock().unwrap().handle_block(new_block, is_force_block, false);
+            block_id += 1;
+        }
+        else {
             println!("Неверная команда.");
         }
     }
