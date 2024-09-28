@@ -28,13 +28,16 @@ impl P2PProtocol {
 
     pub fn handle_message(&mut self, message_json: &str) {
         let message_json = message_json.trim_end_matches('\0');
-
         match Message::from_json(message_json) {
             Ok(message) => {
 
                 match message {
                     Message::RequestMessageInfo(_) => {
                         self.response_first_message();
+                        let request_last_5_block = request::LastNBlocksMessage::new(5);
+                        let request_last_5_block_message = Message::RequestLastNBlocksMessage(request_last_5_block);
+                        self.sender.send(request_last_5_block_message).unwrap();
+
                         return;
                     }
 
@@ -58,7 +61,7 @@ impl P2PProtocol {
                 }
 
                 self.sender.send(message.clone()).unwrap();
-                    self.broadcast(message, true);
+                self.broadcast(message, true);
             }
             Err(e) => {
                 eprintln!("Failed to deserialize response_message: {}", e);
@@ -77,6 +80,7 @@ impl P2PProtocol {
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
 
+        //отправка сообщения в поток о том что нужно очистить свой блок
         self.broadcast(response_message, true);
     }
 
@@ -121,9 +125,9 @@ impl P2PProtocol {
         }
         message.set_id(self.last_message_id);
 
-        let serialize_message = message.to_json();
+        let serialized_message = message.to_json();
         let mut connection_pool = self.connection_pool.lock().unwrap();
 
-        connection_pool.broadcast(serialize_message.as_ref());
+        connection_pool.broadcast(serialized_message.as_ref());
     }
 }

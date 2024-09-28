@@ -76,9 +76,10 @@ impl Server {
 }
 
 fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) {
-    let mut buffer = [0; 512];
+    let mut buffer = [0; 4096];
 
     p2p_protocol.lock().unwrap().request_first_message();
+
 
     loop {
         match stream.read(&mut buffer) {
@@ -88,12 +89,15 @@ fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_po
                 break;
             }
             Ok(_) => {
+                //TODO Добавить нормальное принятие данных из буфера
+
+                // println!("{}", buffer.len());
                 let message = String::from_utf8_lossy(&buffer[..]);
                 // println!("Received response_message from {}: {}", peer_address, response_message);
                 //TODO Нормально обработать ошибки
                 p2p_protocol.lock().unwrap().handle_message(&message);
                 // connection_pool.lock().unwrap().broadcast(&response_message);
-                buffer = [0; 512];
+                buffer = [0; 4096];
             }
 
             Err(e) => {

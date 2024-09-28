@@ -35,7 +35,6 @@ impl Blockchain {
             }
             Err(e)=>{
                 eprintln!("Error adding block: {e}");
-
             }
         };
 
@@ -59,7 +58,7 @@ impl Blockchain {
         let hex_string = format!("{:x}", result);
 
         let block = Block::new(1, vec![], hex_string, 0);
-        self.add_block(block);
+        self.add_force_block(block);
     }
 
     pub fn len(&self) -> usize{
@@ -68,7 +67,7 @@ impl Blockchain {
 
     fn valid_block(&self, block:&Block) -> bool{
         let block_hash = block.get_hash();
-        let start_with = "000";
+        let start_with = "00000";
         
         &block_hash[..start_with.len()] == start_with
     }
@@ -86,9 +85,9 @@ impl Blockchain {
         let last_block_hash = last_block.get_hash();
 
         loop{
-            let block = Block::new(last_block.get_id(), vec![], last_block_hash.clone(), last_block.get_nonce()+i);
+            let block = Block::new(last_block.get_id() + 1, vec![], last_block_hash.clone(), i);
             if self.valid_block(&block){
-                println!("{}", i);
+                // println!("{}", i);
                 self.chain.push(block);
                 break;
             }
