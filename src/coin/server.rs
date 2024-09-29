@@ -1,8 +1,9 @@
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, mpsc, Mutex};
-use std::io::Read;
+use std::sync::{mpsc, Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::thread;
+use std::time::Duration;
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
@@ -17,13 +18,15 @@ impl Server {
     pub fn new() -> (Self, Receiver<Message>) {
         let (tx, rx) = mpsc::channel();
         let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
-        // Инициализация протокола для работы с пирами
         let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
 
-        (Server {
-            connection_pool,
-            p2p_protocol,
-        }, rx)
+        (
+            Server {
+                connection_pool,
+                p2p_protocol,
+            },
+            rx,
+        )
     }
 
     pub fn run(&mut self, address: &str) {
@@ -75,11 +78,16 @@ impl Server {
     }
 }
 
-fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_pool: Arc<Mutex<ConnectionPool>>, p2p_protocol: Arc<Mutex<P2PProtocol>>) {
-    let mut buffer = [0; 4096];
+fn handle_connection(
+    peer_address: String,
+    stream: &mut TcpStream,
+    connection_pool: Arc<Mutex<ConnectionPool>>,
+    p2p_protocol: Arc<Mutex<P2PProtocol>>,
+) {
+    let mut buffer = vec![0; 1024];
+    let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
 
     p2p_protocol.lock().unwrap().request_first_message();
-
 
     loop {
         match stream.read(&mut buffer) {
@@ -88,23 +96,35 @@ fn handle_connection(peer_address: String, stream: &mut TcpStream, connection_po
                 connection_pool.lock().unwrap().remove_peer(&peer_address);
                 break;
             }
-            Ok(_) => {
-                //TODO Добавить нормальное принятие данных из буфера
+            Ok(n) => {
+                // Добавляем полученные данные в строковый буфер
+                accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
 
-                // println!("{}", buffer.len());
-                let message = String::from_utf8_lossy(&buffer[..]);
-                // println!("Received response_message from {}: {}", peer_address, response_message);
-                //TODO Нормально обработать ошибки
-                p2p_protocol.lock().unwrap().handle_message(&message);
-                // connection_pool.lock().unwrap().broadcast(&response_message);
-                buffer = [0; 4096];
+                // Обработка буфера построчно
+                while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
+                    println!("Получено новое сообщение!");
+                    p2p_protocol.lock().unwrap().handle_message(&message);
+                    accumulated_data = remaining_data;
+                }
             }
-
             Err(e) => {
                 eprintln!("Error reading from stream: {:?}", e);
                 connection_pool.lock().unwrap().remove_peer(&peer_address);
                 break;
             }
         }
+    }
+}
+
+/// Извлекает одно сообщение из буфера данных, разделенных `\n`.
+/// Возвращает кортеж (сообщение, остаток данных).
+fn extract_message(data: &str) -> Option<(String, String)> {
+    if let Some(index) = data.find('\n') {
+        // Находим первое сообщение и остаток
+        let message = data[..index].to_string();
+        let remaining = data[(index + 1)..].to_string(); // Пропускаем символ новой строки
+        Some((message, remaining))
+    } else {
+        None
     }
 }

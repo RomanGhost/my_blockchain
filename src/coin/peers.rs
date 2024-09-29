@@ -28,9 +28,9 @@ impl P2PProtocol {
 
     pub fn handle_message(&mut self, message_json: &str) {
         let message_json = message_json.trim_end_matches('\0');
+        // dbg!(message_json);
         match Message::from_json(message_json) {
             Ok(message) => {
-
                 match message {
                     Message::RequestMessageInfo(_) => {
                         self.response_first_message();
@@ -64,7 +64,7 @@ impl P2PProtocol {
                 self.broadcast(message, true);
             }
             Err(e) => {
-                eprintln!("Failed to deserialize response_message: {}", e);
+                eprintln!("Failed to deserialize response_message: {}, {}", e, message_json);
             }
         }
     }
@@ -81,7 +81,7 @@ impl P2PProtocol {
         let response_message = Message::RequestMessageInfo(response_message);
 
         //отправка сообщения в поток о том что нужно очистить свой блок
-        self.broadcast(response_message, true);
+        self.broadcast(response_message, false);
     }
 
     pub fn response_first_message(&mut self){
@@ -91,24 +91,24 @@ impl P2PProtocol {
         self.broadcast(response_message, true);
     }
 
-    pub fn response_text(&mut self, message: String, receive:bool) {
+    pub fn response_text(&mut self, message: String) {
         let response_message = response::TextMessage::new(message);
         let response_message = Message::ResponseTextMessage(response_message);
 
-        self.broadcast(response_message, receive);
+        self.broadcast(response_message, false);
     }
 
-    pub fn response_block(&mut self, block: Block, force:bool, receive:bool) {
+    pub fn response_block(&mut self, block: Block, force: bool) {
         let response_message = response::BlockMessage::new(block, force);
         let response_message = Message::ResponseBlockMessage(response_message);
 
-        self.broadcast(response_message, receive);
+        self.broadcast(response_message, false);
     }
-    fn response_transaction(&mut self, message: Transaction, receive:bool) {
+    fn response_transaction(&mut self, message: Transaction) {
         let response_message = response::TransactionMessage::new(message);
         let response_message = Message::ResponseTransactionMessage(response_message);
 
-        self.broadcast(response_message, receive);
+        self.broadcast(response_message, false);
     }
 
     fn response_peers(&self, stream: &mut TcpStream) {

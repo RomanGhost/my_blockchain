@@ -5,11 +5,13 @@ use crate::coin::blockchain::block::Block;
 
 pub struct Blockchain {
     pub chain:Vec<Block>,
+    nonce_iteration: u64,
 }
 impl Blockchain {
     pub fn new() -> Blockchain {
         Blockchain {
             chain:vec![],
+            nonce_iteration: 0
         }
     }
 
@@ -25,12 +27,16 @@ impl Blockchain {
                 eprintln!("Error adding block: {e}");
             }
         };
+        println!("Количество блоков в блокчейн: {}", self.chain.len());
     }
 
     pub fn add_force_block(&mut self, block:Block){
         let mut block = block;
         match self.get_last_block(){
             Ok(last_block) =>{
+                if last_block.get_id() >= block.get_id() {
+                    return;
+                }
                 block.set_previous_hash(last_block.get_hash());
             }
             Err(e)=>{
@@ -67,32 +73,45 @@ impl Blockchain {
 
     fn valid_block(&self, block:&Block) -> bool{
         let block_hash = block.get_hash();
-        let start_with = "00000";
-        
+        let start_with = "000";
+
         &block_hash[..start_with.len()] == start_with
     }
 
-    pub fn proof_of_work(&mut self){
+    pub fn proof_of_work(&mut self) -> bool {
         let last_block = self.get_last_block();
+        let mut result = false;
         match last_block {
-            Ok(b) => self._proof_of_work(b),
-            Err(e) => println!("error parsing header: {e:?}"),
+            Ok(b) => result = self._proof_of_work(b),
+            Err(e) => {
+                eprintln!("Блокчейн пуст");
+                self.create_first_block();
+                self.proof_of_work();
+            },
         };
+        result
     }
 
-    fn _proof_of_work(&mut self, last_block:Block){
-        let mut i:u64 = 0;
+    fn _proof_of_work(&mut self, last_block: Block) -> bool {
         let last_block_hash = last_block.get_hash();
+        let block = Block::new(
+            last_block.get_id() + 1,
+            vec![],
+            last_block_hash.clone(),
+            self.nonce_iteration,
+        );
 
-        loop{
-            let block = Block::new(last_block.get_id() + 1, vec![], last_block_hash.clone(), i);
-            if self.valid_block(&block){
-                // println!("{}", i);
-                self.chain.push(block);
-                break;
-            }
-            i += 1;
-        };
+        let validation = self.valid_block(&block);
+        if validation {
+            println!("Create new block");
+            // println!("{}", i);
+            self.chain.push(block);
+            self.nonce_iteration = 0;
+        }
+        self.nonce_iteration += 1;
+
+        validation
+
     }
 
     pub fn get_blocks_after(&self, datetime: DateTime<Utc>) -> Vec<Block> {
