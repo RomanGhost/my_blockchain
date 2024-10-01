@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::thread::JoinHandle;
 use std::time::Duration;
 use crate::coin::blockchain::blockchain::Blockchain;
 use crate::coin::message::r#type::Message;
@@ -230,4 +229,10 @@ fn main() {
     running.store(false, Ordering::SeqCst);
     // receiver_thread.join().unwrap();
     // server_thread.join().unwrap();
+
+    let last_blocks = blockchain.lock().unwrap().get_last_n_blocks(50);
+    for block in last_blocks {
+        println!("{:?}", block.get_hash());
+        println!("{:?}", block);
+    }
 }

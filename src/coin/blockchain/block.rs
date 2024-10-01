@@ -26,7 +26,7 @@ impl Block{
         Block{
             id:self.id,
             time_create:self.time_create,
-            transactions: self.transactions.iter().map(|t| Transaction{id:t.id}).collect::<Vec<Transaction>>(),
+            transactions: self.transactions.clone(),
             previous_hash: self.previous_hash.clone(),
             nonce: self.nonce,
         }
