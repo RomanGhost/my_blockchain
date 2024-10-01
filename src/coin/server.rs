@@ -3,7 +3,6 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::thread;
-use std::time::Duration;
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
@@ -78,6 +77,7 @@ impl Server {
     }
 }
 
+
 fn handle_connection(
     peer_address: String,
     stream: &mut TcpStream,
@@ -102,7 +102,6 @@ fn handle_connection(
 
                 // Обработка буфера построчно
                 while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
-                    println!("Получено новое сообщение!");
                     p2p_protocol.lock().unwrap().handle_message(&message);
                     accumulated_data = remaining_data;
                 }

@@ -27,23 +27,22 @@ impl Blockchain {
                 eprintln!("Error adding block: {e}");
             }
         };
-        println!("Количество блоков в блокчейн: {}", self.chain.len());
+        // println!("Количество блоков в блокчейн: {}", self.chain.len());
     }
 
     pub fn add_force_block(&mut self, block:Block){
-        let mut block = block;
-        match self.get_last_block(){
-            Ok(last_block) =>{
-                if last_block.get_id() >= block.get_id() {
-                    return;
-                }
-                block.set_previous_hash(last_block.get_hash());
-            }
-            Err(e)=>{
-                eprintln!("Error adding block: {e}");
-            }
-        };
-
+        // let mut block = block;
+        // match self.get_last_block(){
+        //     Ok(last_block) =>{
+        //         if last_block.get_id() >= block.get_id() {
+        //             println!("Не можем добавить новый блок т.к. id последнего блока больше");
+        //             return;
+        //         }
+        //     }
+        //     Err(e)=>{
+        //         eprintln!("Error adding block: {e}");
+        //     }
+        // };
         self.chain.push(block);
     }
 
@@ -83,7 +82,7 @@ impl Blockchain {
         let mut result = false;
         match last_block {
             Ok(b) => result = self._proof_of_work(b),
-            Err(e) => {
+            Err(_) => {
                 eprintln!("Блокчейн пуст");
                 self.create_first_block();
                 self.proof_of_work();
@@ -103,8 +102,7 @@ impl Blockchain {
 
         let validation = self.valid_block(&block);
         if validation {
-            println!("Create new block");
-            // println!("{}", i);
+            println!("Create new block with id: {}", block.get_id());
             self.chain.push(block);
             self.nonce_iteration = 0;
         }
