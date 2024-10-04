@@ -7,7 +7,6 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use crate::coin::blockchain::blockchain::Blockchain;
-use crate::coin::message;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
@@ -26,13 +25,12 @@ fn get_input_text(info_text: &str) -> String {
     }
 }
 
-fn server_thread() -> (Server, Receiver<Message>, JoinHandle<()>) {
+fn server_thread(server_address: String) -> (Server, Receiver<Message>, JoinHandle<()>) {
     // Initialize server.
     let (mut server, rx_server) = Server::new();
     let server_clone = server.clone();
 
     // Input server address and run it in a separate thread.
-    let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
     let server_thread = {
         let server_address = server_address.clone();
         thread::spawn(move || {
@@ -172,7 +170,8 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
 }
 
 fn main() {
-    let (server_clone, rx_server, server_thread) = server_thread();
+    let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
+    let (server_clone, rx_server, server_thread) = server_thread(server_address);
     let p2p_protocol = server_clone.get_peer_protocol();
     thread::sleep(Duration::from_secs(3)); // Delay for server initialization.
 
@@ -190,12 +189,12 @@ fn main() {
         let mining_thread = mining_thread(blockchain, mining_flag, p2p_protocol, running);
     }
 
-    let blockchain = Arc::clone(&blockchain);
-    let p2p_protocol = Arc::clone(&p2p_protocol);
-    let mining_flag = Arc::clone(&mining_flag);
-    let running = Arc::clone(&running);
+    let blockchain_receiver = Arc::clone(&blockchain);
+    let p2p_protocol_receiver = Arc::clone(&p2p_protocol);
+    let mining_flag_receiver = Arc::clone(&mining_flag);
+    let running_receiver = Arc::clone(&running);
     // Thread for handling incoming messages from the server.
-    let receiver_thread = message_thread(blockchain, p2p_protocol, mining_flag, running, rx_server);
+    let receiver_thread = message_thread(blockchain_receiver, p2p_protocol_receiver, mining_flag_receiver, running_receiver, rx_server);
 
     // Main loop for processing user commands.
     loop {

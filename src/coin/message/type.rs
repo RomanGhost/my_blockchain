@@ -29,12 +29,10 @@ pub enum Message {
 }
 
 impl Message {
-    // Унифицированный метод для сериализации
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
 
-    // Унифицированный метод для десериализации
     pub fn from_json(json_str: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json_str)
     }
