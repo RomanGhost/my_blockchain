@@ -4,6 +4,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use crate::coin::blockchain::blockchain::Blockchain;
 use crate::coin::message::r#type::Message;

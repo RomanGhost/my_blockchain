@@ -1,48 +1,85 @@
-use std::panic::panic_any;
-use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize, Clone)]
+use rand::rngs::OsRng;
+use rsa::{RsaPrivateKey, RsaPublicKey};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding, DecodeRsaPrivateKey};
+
+// Структура кошелька
+#[derive(Clone)]
 pub struct Wallet {
-    open_key: String,
-    close_key: String,
+    public_key: RsaPublicKey,
+    private_key: RsaPrivateKey,
     amount: f64,
 }
 
 impl Wallet {
-    pub fn new() -> Wallet {}
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(&self).unwrap()
+    // Создание нового кошелька
+    pub fn new() -> Wallet {
+        let mut rng = OsRng;
+        let private_key = RsaPrivateKey::new(&mut rng, 2048).expect("Ошибка генерации ключа");
+        let public_key = RsaPublicKey::from(&private_key);
+        Wallet { public_key, private_key, amount: 0f64 }
     }
 
+    // Преобразование кошелька в JSON
+    pub fn to_json(&self) -> String {
+        let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
+        let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
+
+        let serialized_wallet = SerializedWallet {
+            public_key: public_key_pem,
+            private_key: private_key_pem,
+            amount: self.amount,
+        };
+        serde_json::to_string(&serialized_wallet).unwrap()
+    }
+
+    // Создание кошелька из JSON
     pub fn from_json(json_str: &str) -> Self {
-        let result = serde_json::from_str(json_str);
+        let result: Result<SerializedWallet, serde_json::Error> = serde_json::from_str(json_str);
         match result {
-            Ok(result_map) => {
-                return result_map;
+            Ok(serialized_wallet) => {
+                let public_key = RsaPublicKey::from_pkcs1_pem(&serialized_wallet.public_key)
+                    .expect("Ошибка чтения публичного ключа");
+                let private_key = RsaPrivateKey::from_pkcs1_pem(&serialized_wallet.private_key)
+                    .expect("Ошибка чтения приватного ключа");
+                Wallet {
+                    public_key,
+                    private_key,
+                    amount: serialized_wallet.amount,
+                }
             }
-            Err(e) => {
-                eprintln!("Error read wallet values from json");
-                return Self::new();
+            Err(_) => {
+                eprintln!("Ошибка при чтении значений из JSON. Создается новый кошелек.");
+                Self::new()
             }
         }
     }
 
-    pub fn get_open_key(&self) -> String {
-        self.open_key.clone()
+    pub fn get_public_key(&self) -> RsaPublicKey {
+        self.public_key.clone()
     }
 
-    pub fn get_close_key(&self) -> String {
-        self.close_key.clone()
+    pub fn get_private_key(&self) -> RsaPrivateKey {
+        self.private_key.clone()
     }
 
     pub fn get_amount(&self) -> f64 {
         self.amount
     }
 
-    pub fn set_amount(&mut self, mount: f64) {
-        if mount < 0f64 {
-            panic!("value can't be negative");
+    pub fn set_amount(&mut self, amount: f64) {
+        if amount < 0f64 {
+            panic!("Значение не может быть отрицательным");
         } else {
-            self.amount = mount;
+            self.amount = amount;
         }
     }
+}
+
+// Структура для сериализованного кошелька
+#[derive(Serialize, Deserialize)]
+struct SerializedWallet {
+    public_key: String,    // Публичный ключ в виде строки (PEM)
+    private_key: String,   // Приватный ключ в виде строки (PEM)
+    amount: f64,
 }
