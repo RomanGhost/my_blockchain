@@ -1,54 +1,36 @@
-use rsa::{PublicKey, RsaPrivateKey, RsaPublicKey, PaddingScheme};
+use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, PublicKey};
+use sha2::Sha256;
 use rand::rngs::OsRng;
-use rsa::pkcs8::EncodePublicKey;
-// используем надежный генератор случайных чисел
-
-fn generate_keys() -> (RsaPrivateKey, RsaPublicKey) {
-    // генерируем 2048-битный приватный ключ
-    let mut rng = OsRng;
-    let private_key = RsaPrivateKey::new(&mut rng, 256)
-        .expect("Ошибка генерации ключа");
-
-    // получаем публичный ключ из приватного
-    let public_key = RsaPublicKey::from(&private_key);
-
-    (private_key, public_key)
-}
-
-fn encrypt_message(public_key: &RsaPublicKey, message: &[u8]) -> Vec<u8> {
-    let mut rng = OsRng;
-    let padding = PaddingScheme::new_pkcs1v15_encrypt(); // используем PKCS1 v1.5 для шифрования
-
-    // шифруем сообщение
-    public_key
-        .encrypt(&mut rng, padding, message)
-        .expect("Ошибка шифрования")
-}
-
-fn decrypt_message(private_key: &RsaPrivateKey, encrypted_data: &[u8]) -> Vec<u8> {
-    let padding = PaddingScheme::new_pkcs1v15_encrypt();
-
-    // дешифруем сообщение
-    private_key
-        .decrypt(padding, encrypted_data)
-        .expect("Ошибка дешифрования")
-}
+use rsa::signature::digest::Digest;
 
 fn main() {
-    // генерируем ключи
-    let (private_key, public_key) = generate_keys();
+    // Генерация пары ключей
+    let mut rng = OsRng;
+    let bits = 2048;
+    let private_key = RsaPrivateKey::new(&mut rng, bits).expect("Не удалось сгенерировать ключ");
+    let public_key = RsaPublicKey::from(&private_key);
 
-    // исходное сообщение
-    let message = "Привет, Хабр!".to_string();
+    // Исходное сообщение
+    let message = "Сообщение для подписи".to_string();
     let message = message.into_bytes();
 
-    // зашифровываем сообщение
-    let encrypted_data = encrypt_message(&public_key, &message);
-    println!("{:?}", public_key.to_public_key_der().unwrap());
+    // Хеширование сообщения
+    let mut hasher = Sha256::new();
+    hasher.update(message);
+    let hashed_message = hasher.finalize();
 
-    // дешифровываем сообщение
-    let decrypted_data = decrypt_message(&private_key, &encrypted_data);
+    // Подпись хеша
+    let padding = PaddingScheme::new_pkcs1v15_sign_raw();
+    let signature = private_key.sign(padding, &hashed_message).expect("Не удалось подписать сообщение");
 
-    println!("Расшифрованное сообщение: {:?}", String::from_utf8_lossy(&decrypted_data));
+    // Проверка подписи
+    let padding = PaddingScheme::new_pkcs1v15_sign_raw();
+    let is_valid = public_key.verify(padding, &hashed_message, &signature).is_ok();
+
+    // Результат проверки
+    if is_valid {
+        println!("Подпись верна!");
+    } else {
+        println!("Подпись неверна!");
+    }
 }
-
