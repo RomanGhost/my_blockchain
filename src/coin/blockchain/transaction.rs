@@ -1,44 +1,130 @@
-use rsa::RsaPublicKey;
 use serde::{Serialize, Deserialize};
-use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding, RsaPrivateKey};
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
 
-// Структура для сериализованной транзакции
-#[derive(Serialize, Deserialize, Debug, Clone)]
+use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, PublicKey};
+use sha2::Sha256;
+use rsa::signature::digest::Digest;
+
+#[derive(Debug, Clone)]
 pub struct Transaction {
     id: u64,
-    sender: String,   // Публичный ключ отправителя в строковом формате
-    receiver: String, // Публичный ключ получателя в строковом формате
+    sender: RsaPublicKey,   // Публичный ключ отправителя в строковом формате
+    receiver: RsaPublicKey, // Публичный ключ получателя в строковом формате
     message: String,
     tax: f64,
-    signature: Option<Vec<u8>>,
+    signature: Vec<u8>,
 }
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender: RsaPublicKey, receiver: RsaPublicKey, message: String, tax: f64, signature: Option<Vec<u8>>) -> Transaction {
-        let sender_pem = sender.to_pkcs1_pem(LineEnding::LF).unwrap();  // Преобразуем публичный ключ отправителя в PEM
-        let receiver_pem = receiver.to_pkcs1_pem(LineEnding::LF).unwrap(); // Преобразуем публичный ключ получателя в PEM
-
+    pub fn new(sender: RsaPublicKey, receiver: RsaPublicKey, message: String, tax: f64, signature: Vec<u8>) -> Transaction {
         Transaction {
             id: 0,
-            sender: sender_pem,
-            receiver: receiver_pem,
+            sender,
+            receiver,
             message,
             tax,
             signature,
         }
     }
 
-    // todo!("Сделать подпись и проверку подписи транзакции");
+    pub fn sign(&mut self, private_key: RsaPrivateKey) {
+        // Исходное сообщение
+        let message = self.to_string();
+        let message = message.into_bytes();
+
+        // Хеширование сообщения
+        let mut hasher = Sha256::new();
+        hasher.update(message);
+        let hashed_message = hasher.finalize();
+
+        // Подпись хеша
+        let padding = PaddingScheme::new_pkcs1v15_sign_raw();
+        self.signature = private_key.sign(padding, &hashed_message).expect("Не удалось подписать сообщение");
+    }
+
+    pub fn verify(&self) {
+        // Исходное сообщение
+        let message = self.to_string();
+        let message = message.into_bytes();
+
+        // Хеширование сообщения
+        let mut hasher = Sha256::new();
+        hasher.update(message);
+        let hashed_message = hasher.finalize();
+
+        // Проверка подписи
+        let signature = self.signature.clone();
+        let public_key = self.sender.clone();
+        let padding = PaddingScheme::new_pkcs1v15_sign_raw();
+        let is_valid = public_key.verify(padding, &hashed_message, &signature).is_ok();
+
+        // Результат проверки
+        if is_valid {
+            println!("Подпись верна!");
+        } else {
+            println!("Подпись неверна!");
+        }
+    }
+
 
     // Преобразование транзакции в строку (для демонстрации)
     pub fn to_string(&self) -> String {
-        format!("{}:{}:{}:{}", self.sender, self.receiver, self.message, self.tax)
+        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();  // Преобразуем публичный ключ отправителя в PEM
+        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap(); // Преобразуем публичный ключ получателя в PEM
+
+        format!("{}:{}:{}:{}", sender_pem, receiver_pem, self.message, self.tax)
+    }
+
+    pub fn serialize(&self) -> SerializedTransaction {
+        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();  // Преобразуем публичный ключ отправителя в PEM
+        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap(); // Преобразуем публичный ключ получателя в PEM
+
+        SerializedTransaction {
+            id: self.id,
+            sender: sender_pem,
+            receiver: receiver_pem,
+            message: self.message.clone(),
+            tax: self.tax,
+            signature: self.signature.clone(),
+        }
     }
 
     // Преобразование транзакции в JSON
     pub fn to_json(&self) -> String {
-        serde_json::to_string(&self).unwrap()
+        let serialized_transaction = self.serialize();
+        serde_json::to_string(&serialized_transaction).unwrap()
+    }
+
+    pub fn from_json(json_str: &str) -> Result<Self, String> {
+        // Парсинг JSON в структуру SerializedTransaction
+        let result: Result<SerializedTransaction, serde_json::Error> = serde_json::from_str(json_str);
+
+        match result {
+            Ok(serialized_transaction) => {
+                // Десериализация публичного ключа отправителя
+                let sender = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.sender)
+                    .map_err(|_| "Ошибка чтения публичного ключа отправителя".to_string())?;
+
+                // Десериализация публичного ключа получателя
+                let receiver = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.receiver)
+                    .map_err(|_| "Ошибка чтения публичного ключа получателя".to_string())?;
+
+                // Создаем объект Transaction
+                Ok(Transaction {
+                    id: serialized_transaction.id,
+                    sender,
+                    receiver,
+                    message: serialized_transaction.message,
+                    tax: serialized_transaction.tax,
+                    signature: serialized_transaction.signature,
+                })
+            }
+            Err(err) => {
+                // Возвращаем строку ошибки при неудачной десериализации JSON
+                Err(format!("Ошибка при чтении JSON: {}", err))
+            }
+        }
     }
 
     // Получение ID транзакции
@@ -48,16 +134,26 @@ impl Transaction {
 
     // Получение публичного ключа получателя (конвертация обратно из PEM)
     pub fn get_receiver(&self) -> RsaPublicKey {
-        RsaPublicKey::from_pkcs1_pem(&self.receiver).unwrap()  // Преобразуем строку обратно в RsaPublicKey
+        self.receiver.clone()  // Преобразуем строку обратно в RsaPublicKey
     }
 
     // Получение публичного ключа отправителя (конвертация обратно из PEM)
     pub fn get_sender(&self) -> RsaPublicKey {
-        RsaPublicKey::from_pkcs1_pem(&self.sender).unwrap()  // Преобразуем строку обратно в RsaPublicKey
+        self.sender.clone()  // Преобразуем строку обратно в RsaPublicKey
     }
 
     // Получение комиссии транзакции
     pub fn get_tax(&self) -> f64 {
         self.tax
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SerializedTransaction {
+    id: u64,
+    sender: String,   // Публичный ключ отправителя в строковом формате
+    receiver: String, // Публичный ключ получателя в строковом формате
+    message: String,
+    tax: f64,
+    signature: Vec<u8>,
 }

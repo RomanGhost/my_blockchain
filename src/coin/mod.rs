@@ -4,4 +4,3 @@ pub mod peers;
 pub mod server;
 pub mod blockchain;
 pub mod message;
-pub mod wallet;

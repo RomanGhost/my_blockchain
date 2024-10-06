@@ -4,7 +4,7 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
 use crate::coin::blockchain::block::Block;
-use crate::coin::blockchain::transaction::Transaction;
+use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::message::{request, response};
@@ -104,7 +104,7 @@ impl P2PProtocol {
 
         self.broadcast(response_message, false);
     }
-    fn response_transaction(&mut self, message: Transaction) {
+    fn response_transaction(&mut self, message: SerializedTransaction) {
         let response_message = response::TransactionMessage::new(message);
         let response_message = Message::ResponseTransactionMessage(response_message);
 

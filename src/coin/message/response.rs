@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use crate::coin::blockchain::block::Block;
-use crate::coin::blockchain::transaction::Transaction;
+use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 
 // Пример структуры BlockMessage с флагом force
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -43,12 +43,12 @@ impl BlockMessage {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionMessage {
     id: u64,
-    transaction: Transaction,
+    transaction: SerializedTransaction,
     time_stamp: DateTime<Utc>,
 }
 
 impl TransactionMessage {
-    pub fn new(transaction: Transaction) -> TransactionMessage {
+    pub fn new(transaction: SerializedTransaction) -> TransactionMessage {
         TransactionMessage {
             id: 0,
             transaction,

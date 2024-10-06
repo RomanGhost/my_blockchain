@@ -2,20 +2,20 @@ use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha512};
 use serde::{Serialize, Deserialize};
 
-use crate::coin::blockchain::transaction::Transaction;
+use crate::coin::blockchain::transaction::SerializedTransaction;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block{
     id:usize,
     time_create: DateTime<Utc>,
-    transactions: Vec<Transaction>,
+    transactions: Vec<SerializedTransaction>,
     previous_hash: String,
     nonce: u64
 }
 impl Block{
     pub fn new(
         id:usize,
-        transactions:Vec<Transaction>,
+        transactions: Vec<SerializedTransaction>,
         previous_hash:String,
         nonce:u64
     ) -> Block{

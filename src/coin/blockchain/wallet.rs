@@ -20,8 +20,7 @@ impl Wallet {
         Wallet { public_key, private_key, amount: 0f64 }
     }
 
-    // Преобразование кошелька в JSON
-    pub fn to_json(&self) -> String {
+    pub fn serialize(&self) -> SerializedWallet {
         let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
         let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
 
@@ -30,6 +29,12 @@ impl Wallet {
             private_key: private_key_pem,
             amount: self.amount,
         };
+        serialized_wallet
+    }
+
+    // Преобразование кошелька в JSON
+    pub fn to_json(&self) -> String {
+        let serialized_wallet = self.serialize();
         serde_json::to_string(&serialized_wallet).unwrap()
     }
 
