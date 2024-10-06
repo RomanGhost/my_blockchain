@@ -104,7 +104,7 @@ impl P2PProtocol {
 
         self.broadcast(response_message, false);
     }
-    fn response_transaction(&mut self, message: SerializedTransaction) {
+    pub fn response_transaction(&mut self, message: SerializedTransaction) {
         let response_message = response::TransactionMessage::new(message);
         let response_message = Message::ResponseTransactionMessage(response_message);
 

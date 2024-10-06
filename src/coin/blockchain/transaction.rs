@@ -150,10 +150,10 @@ impl Transaction {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SerializedTransaction {
-    id: u64,
-    sender: String,   // Публичный ключ отправителя в строковом формате
-    receiver: String, // Публичный ключ получателя в строковом формате
-    message: String,
-    tax: f64,
-    signature: Vec<u8>,
+    pub id: u64,
+    pub sender: String,   // Публичный ключ отправителя в строковом формате
+    pub receiver: String, // Публичный ключ получателя в строковом формате
+    pub message: String,
+    pub tax: f64,
+    pub signature: Vec<u8>,
 }

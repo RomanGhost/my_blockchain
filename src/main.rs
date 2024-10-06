@@ -7,6 +7,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use crate::coin::blockchain::blockchain::Blockchain;
+use crate::coin::blockchain::transaction::SerializedTransaction;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
@@ -156,7 +157,9 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
                     }
                     // println!("Mining started");
                 }
-                Message::ResponseTransactionMessage(_) => {}
+                Message::ResponseTransactionMessage(message) => {
+                    println!("Получена новая транзакция! > {:?}", message);
+                }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
                 }
@@ -203,6 +206,7 @@ fn main() {
         println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
         println!("3. Выйти (exit)");
         println!("4. Получить блоки (blockchain)");
+        println!("5. Создать транзакцию (transaction)");
 
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["connect", address] => {
@@ -230,6 +234,19 @@ fn main() {
                     println!("{:?}", block.get_hash());
                     println!("{:?}", block);
                 }
+            }
+            ["transaction", message @ ..] if !message.is_empty() => {
+                let message = message.join(" ");
+
+                let response_transaction = SerializedTransaction {
+                    id: 0,
+                    sender: "".to_string().clone(),
+                    receiver: "".to_string().clone(),
+                    message,
+                    tax: 1f64,
+                    signature: vec![],
+                };
+                p2p_protocol.lock().unwrap().response_transaction(response_transaction);
             }
             _ => println!("Неверная команда."),
         }
