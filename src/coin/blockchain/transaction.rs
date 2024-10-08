@@ -8,8 +8,8 @@ use rsa::signature::digest::Digest;
 #[derive(Debug, Clone)]
 pub struct Transaction {
     id: u64,
-    sender: RsaPublicKey,   // Публичный ключ отправителя в строковом формате
-    receiver: RsaPublicKey, // Публичный ключ получателя в строковом формате
+    sender: RsaPublicKey,
+    receiver: RsaPublicKey,
     message: String,
     tax: f64,
     signature: Vec<u8>,
@@ -70,15 +70,15 @@ impl Transaction {
 
     // Преобразование транзакции в строку (для демонстрации)
     pub fn to_string(&self) -> String {
-        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();  // Преобразуем публичный ключ отправителя в PEM
-        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap(); // Преобразуем публичный ключ получателя в PEM
+        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
 
         format!("{}:{}:{}:{}", sender_pem, receiver_pem, self.message, self.tax)
     }
 
     pub fn serialize(&self) -> SerializedTransaction {
-        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();  // Преобразуем публичный ключ отправителя в PEM
-        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap(); // Преобразуем публичный ключ получателя в PEM
+        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
 
         SerializedTransaction {
             id: self.id,
@@ -134,12 +134,12 @@ impl Transaction {
 
     // Получение публичного ключа получателя (конвертация обратно из PEM)
     pub fn get_receiver(&self) -> RsaPublicKey {
-        self.receiver.clone()  // Преобразуем строку обратно в RsaPublicKey
+        self.receiver.clone()
     }
 
     // Получение публичного ключа отправителя (конвертация обратно из PEM)
     pub fn get_sender(&self) -> RsaPublicKey {
-        self.sender.clone()  // Преобразуем строку обратно в RsaPublicKey
+        self.sender.clone()
     }
 
     // Получение комиссии транзакции
@@ -151,8 +151,8 @@ impl Transaction {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SerializedTransaction {
     pub id: u64,
-    pub sender: String,   // Публичный ключ отправителя в строковом формате
-    pub receiver: String, // Публичный ключ получателя в строковом формате
+    pub sender: String,
+    pub receiver: String,
     pub message: String,
     pub tax: f64,
     pub signature: Vec<u8>,
