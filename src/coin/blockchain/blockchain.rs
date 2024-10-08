@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha512};
 
 use crate::coin::blockchain::block::Block;
+use crate::coin::blockchain::transaction::SerializedTransaction;
 
 pub struct Blockchain {
     pub chain:Vec<Block>,
@@ -77,25 +78,25 @@ impl Blockchain {
         &block_hash[..start_with.len()] == start_with
     }
 
-    pub fn proof_of_work(&mut self) -> bool {
+    pub fn proof_of_work(&mut self, transactions: Vec<SerializedTransaction>) -> bool {
         let last_block = self.get_last_block();
         let mut result = false;
         match last_block {
-            Ok(b) => result = self._proof_of_work(b),
+            Ok(b) => result = self._proof_of_work(b, transactions),
             Err(_) => {
                 eprintln!("Блокчейн пуст");
                 self.create_first_block();
-                self.proof_of_work();
+                self.proof_of_work(transactions);
             },
         };
         result
     }
 
-    fn _proof_of_work(&mut self, last_block: Block) -> bool {
+    fn _proof_of_work(&mut self, last_block: Block, transactions: Vec<SerializedTransaction>) -> bool {
         let last_block_hash = last_block.get_hash();
         let block = Block::new(
             last_block.get_id() + 1,
-            vec![],
+            transactions,
             last_block_hash.clone(),
             self.nonce_iteration,
         );
@@ -124,5 +125,9 @@ impl Blockchain {
     pub fn get_last_n_blocks(&self, n:usize) -> Vec<Block> {
         let last_n = &self.chain[self.chain.len().saturating_sub(n)..];
         last_n.iter().cloned().collect()
+    }
+
+    pub fn clear_nonce(&mut self) {
+        self.nonce_iteration = 0;
     }
 }

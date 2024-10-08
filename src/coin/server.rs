@@ -7,6 +7,8 @@ use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 
+/// TODO создать функцию clone внутри
+/// TODO добавить мягкое завершение потоков
 #[derive(Clone)]
 pub struct Server {
     connection_pool: Arc<Mutex<ConnectionPool>>,

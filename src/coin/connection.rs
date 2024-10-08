@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::net::{TcpStream, SocketAddr};
-use std::io::{self, Write};
+use std::net::TcpStream;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 pub struct ConnectionPool {

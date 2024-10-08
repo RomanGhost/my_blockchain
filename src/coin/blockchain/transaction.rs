@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
 
@@ -156,4 +157,30 @@ pub struct SerializedTransaction {
     pub message: String,
     pub tax: f64,
     pub signature: Vec<u8>,
+}
+
+impl Eq for SerializedTransaction {}
+
+impl PartialEq for SerializedTransaction {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id &&
+            self.sender == other.sender &&
+            self.receiver == other.receiver &&
+            self.message == other.message &&
+            self.tax == other.tax &&
+            self.signature == other.signature
+    }
+}
+
+// Реализуем Ord для сортировки по приоритету
+impl Ord for SerializedTransaction {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.tax.partial_cmp(&other.tax).unwrap_or(Ordering::Equal) // Сортировка по возрастанию
+    }
+}
+
+impl PartialOrd for SerializedTransaction {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }

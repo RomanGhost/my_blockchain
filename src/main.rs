@@ -1,4 +1,6 @@
 mod coin;
+
+use std::collections::BinaryHeap;
 use std::io::{self, Write};
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,6 +13,8 @@ use crate::coin::blockchain::transaction::SerializedTransaction;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
+
+/// TODO Добавить логирование в программу
 
 // Function to get user input with a prompt message.
 fn get_input_text(info_text: &str) -> String {
@@ -41,8 +45,9 @@ fn server_thread(server_address: String) -> (Server, Receiver<Message>, JoinHand
     (server_clone, rx_server, server_thread)
 }
 
-fn mining_thread(blockchain: Arc<Mutex<Blockchain>>, mining_flag: Arc<(Mutex<bool>, Condvar)>, p2p_protocol: Arc<Mutex<P2PProtocol>>, running: Arc<AtomicBool>) -> JoinHandle<()> {
+fn mining_thread(blockchain: Arc<Mutex<Blockchain>>, mining_flag: Arc<(Mutex<bool>, Condvar)>, p2p_protocol: Arc<Mutex<P2PProtocol>>, running: Arc<AtomicBool>, queue: Arc<Mutex<BinaryHeap<SerializedTransaction>>>) -> JoinHandle<()> {
     let mining_thread = thread::spawn(move || {
+        let mut transactions: Vec<SerializedTransaction> = vec![];
         let (lock, cvar) = &*mining_flag;
         loop {
             // Check if the program is running.
@@ -60,12 +65,28 @@ fn mining_thread(blockchain: Arc<Mutex<Blockchain>>, mining_flag: Arc<(Mutex<boo
 
             {
                 let mut chain = blockchain.lock().unwrap();
-                let iteration_result = chain.proof_of_work();
+                let mut lock_queue = queue.lock().unwrap();
+
+                if lock_queue.len() > 0 && transactions.len() < 4 {
+                    let num_iteration = 4 - transactions.len();
+                    for _ in 0..num_iteration {
+                        let transaction = lock_queue.pop();
+                        // dbg!(&transaction);
+                        match transaction {
+                            Some(t) => transactions.push(t),
+                            None => println!("Нет доступных транзакций для обработки."),
+                        }
+                    }
+                    chain.clear_nonce();
+                }
+
+                let iteration_result = chain.proof_of_work(transactions.clone());
 
                 // If a new block is found, send it to other nodes.
                 if iteration_result {
                     if let Ok(last_block) = chain.get_last_block() {
                         p2p_protocol.lock().unwrap().response_block(last_block, false);
+                        transactions.clear();
                         // println!("Отправлен новый блок");
                     }
                 }
@@ -76,7 +97,7 @@ fn mining_thread(blockchain: Arc<Mutex<Blockchain>>, mining_flag: Arc<(Mutex<boo
     mining_thread
 }
 
-fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2PProtocol>>, mining_flag: Arc<(Mutex<bool>, Condvar)>, running: Arc<AtomicBool>, rx_server: Receiver<Message>) -> JoinHandle<()> {
+fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2PProtocol>>, mining_flag: Arc<(Mutex<bool>, Condvar)>, running: Arc<AtomicBool>, rx_server: Receiver<Message>, queue: Arc<Mutex<BinaryHeap<SerializedTransaction>>>) -> JoinHandle<()> {
     let message_thread = thread::spawn(move || {
         for received in rx_server {
             if !running.load(Ordering::SeqCst) {
@@ -158,7 +179,10 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
                     // println!("Mining started");
                 }
                 Message::ResponseTransactionMessage(message) => {
-                    println!("Получена новая транзакция! > {:?}", message);
+                    let new_transaction = message.get_transaction();
+                    println!("Получена новая транзакция! > {:?}", new_transaction);
+                    queue.lock().unwrap().push(new_transaction);
+                    println!("Транзакция добавлена в очередь");
                 }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
@@ -173,10 +197,16 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
 }
 
 fn main() {
+    // TODO Переделать функцию на новый лад
     let server_address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
     let (server_clone, rx_server, server_thread) = server_thread(server_address);
     let p2p_protocol = server_clone.get_peer_protocol();
     thread::sleep(Duration::from_secs(3)); // Delay for server initialization.
+
+    //Create the priority queue
+    let queue = Arc::new(Mutex::new(BinaryHeap::new()));
+    let queue4blockchain = Arc::clone(&queue);
+    let queue4message = Arc::clone(&queue);
 
     // Create the blockchain and synchronization variables for mining.
     let blockchain = Arc::new(Mutex::new(Blockchain::new()));
@@ -189,7 +219,7 @@ fn main() {
         let p2p_protocol = Arc::clone(&p2p_protocol);
         let running = Arc::clone(&running);
 
-        mining_thread(blockchain, mining_flag, p2p_protocol, running);
+        mining_thread(blockchain, mining_flag, p2p_protocol, running, queue4blockchain);
     }
 
     let blockchain_receiver = Arc::clone(&blockchain);
@@ -197,7 +227,7 @@ fn main() {
     let mining_flag_receiver = Arc::clone(&mining_flag);
     let running_receiver = Arc::clone(&running);
     // Thread for handling incoming messages from the server.
-    let receiver_thread = message_thread(blockchain_receiver, p2p_protocol_receiver, mining_flag_receiver, running_receiver, rx_server);
+    let receiver_thread = message_thread(blockchain_receiver, p2p_protocol_receiver, mining_flag_receiver, running_receiver, rx_server, queue4message);
 
     // Main loop for processing user commands.
     loop {
