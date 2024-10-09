@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
-
+use base64;
 use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, PublicKey};
 use sha2::Sha256;
 use rsa::signature::digest::Digest;
@@ -13,59 +13,59 @@ pub struct Transaction {
     receiver: RsaPublicKey,
     message: String,
     tax: f64,
-    signature: Vec<u8>,
+    signature: String,
 }
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender: RsaPublicKey, receiver: RsaPublicKey, message: String, tax: f64, signature: Vec<u8>) -> Transaction {
+    pub fn new(sender: RsaPublicKey, receiver: RsaPublicKey, message: String, tax: f64) -> Transaction {
         Transaction {
             id: 0,
             sender,
             receiver,
             message,
             tax,
-            signature,
+            signature: "".to_string(),
         }
     }
 
+    // Подпись транзакции с использованием приватного ключа
     pub fn sign(&mut self, private_key: RsaPrivateKey) {
-        // Исходное сообщение
+        // Сериализация данных для подписи
         let message = self.to_string();
-        let message = message.into_bytes();
+        let message_bytes = message.into_bytes();
 
         // Хеширование сообщения
         let mut hasher = Sha256::new();
-        hasher.update(message);
+        hasher.update(message_bytes);
         let hashed_message = hasher.finalize();
 
         // Подпись хеша
         let padding = PaddingScheme::new_pkcs1v15_sign_raw();
-        self.signature = private_key.sign(padding, &hashed_message).expect("Не удалось подписать сообщение");
+        let signature_bytes = private_key.sign(padding, &hashed_message).expect("Не удалось подписать сообщение");
+
+        // Кодирование подписи в Base64 для сохранения в строку
+        self.signature = base64::encode(signature_bytes); // Преобразуем Vec<u8> в Base64 строку
     }
 
-    pub fn verify(&self) {
-        // Исходное сообщение
-        let message = self.to_string();
-        let message = message.into_bytes();
+    // Проверка подписи
+    pub fn verify(&self) -> bool {
+        // Сериализация данных для проверки подписи
+        let message = self.to_json();
+        let message_bytes = message.into_bytes();
 
         // Хеширование сообщения
         let mut hasher = Sha256::new();
-        hasher.update(message);
+        hasher.update(message_bytes);
         let hashed_message = hasher.finalize();
 
+        // Декодирование подписи из Base64 обратно в бинарный формат
+        let signature_bytes = base64::decode(&self.signature).expect("Ошибка декодирования подписи из Base64");
+
         // Проверка подписи
-        let signature = self.signature.clone();
         let public_key = self.sender.clone();
         let padding = PaddingScheme::new_pkcs1v15_sign_raw();
-        let is_valid = public_key.verify(padding, &hashed_message, &signature).is_ok();
-
-        // Результат проверки
-        if is_valid {
-            println!("Подпись верна!");
-        } else {
-            println!("Подпись неверна!");
-        }
+        public_key.verify(padding, &hashed_message, &signature_bytes).is_ok()
     }
 
 
@@ -91,6 +91,26 @@ impl Transaction {
         }
     }
 
+    pub fn deserialize(serialized_transaction: SerializedTransaction) -> Result<Self, String> {
+        // Десериализация публичного ключа отправителя
+        let sender = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.sender)
+            .map_err(|_| "Ошибка чтения публичного ключа отправителя".to_string())?;
+
+        // Десериализация публичного ключа получателя
+        let receiver = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.receiver)
+            .map_err(|_| "Ошибка чтения публичного ключа получателя".to_string())?;
+
+        Ok(Transaction {
+            id: serialized_transaction.id,
+            sender,
+            receiver,
+            message: serialized_transaction.message,
+            tax: serialized_transaction.tax,
+            signature: serialized_transaction.signature,
+        })
+    }
+
+
     // Преобразование транзакции в JSON
     pub fn to_json(&self) -> String {
         let serialized_transaction = self.serialize();
@@ -103,23 +123,7 @@ impl Transaction {
 
         match result {
             Ok(serialized_transaction) => {
-                // Десериализация публичного ключа отправителя
-                let sender = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.sender)
-                    .map_err(|_| "Ошибка чтения публичного ключа отправителя".to_string())?;
-
-                // Десериализация публичного ключа получателя
-                let receiver = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.receiver)
-                    .map_err(|_| "Ошибка чтения публичного ключа получателя".to_string())?;
-
-                // Создаем объект Transaction
-                Ok(Transaction {
-                    id: serialized_transaction.id,
-                    sender,
-                    receiver,
-                    message: serialized_transaction.message,
-                    tax: serialized_transaction.tax,
-                    signature: serialized_transaction.signature,
-                })
+                Transaction::deserialize(serialized_transaction)
             }
             Err(err) => {
                 // Возвращаем строку ошибки при неудачной десериализации JSON
@@ -156,7 +160,7 @@ pub struct SerializedTransaction {
     pub receiver: String,
     pub message: String,
     pub tax: f64,
-    pub signature: Vec<u8>,
+    pub signature: String,
 }
 
 impl Eq for SerializedTransaction {}

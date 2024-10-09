@@ -1,7 +1,11 @@
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::Path;
 use rand::rngs::OsRng;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding, DecodeRsaPrivateKey};
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
+use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey};
 
 // Структура кошелька
 #[derive(Clone)]
@@ -21,8 +25,8 @@ impl Wallet {
     }
 
     pub fn serialize(&self) -> SerializedWallet {
-        let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
-        let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
+        let public_key_pem = self.get_public_key_pem();
+        let private_key_pem = self.get_private_key_pem();
 
         let serialized_wallet = SerializedWallet {
             public_key: public_key_pem,
@@ -45,8 +49,8 @@ impl Wallet {
             Ok(serialized_wallet) => {
                 let public_key = RsaPublicKey::from_pkcs1_pem(&serialized_wallet.public_key)
                     .expect("Ошибка чтения публичного ключа");
-                let private_key = RsaPrivateKey::from_pkcs1_pem(&serialized_wallet.private_key)
-                    .expect("Ошибка чтения приватного ключа");
+                let private_key = RsaPrivateKey::from_pkcs8_pem(&serialized_wallet.private_key)
+                    .expect("Ошибка чтения приватного ключа");  // Десериализуем как PKCS#8
                 Wallet {
                     public_key,
                     private_key,
@@ -63,9 +67,15 @@ impl Wallet {
     pub fn get_public_key(&self) -> RsaPublicKey {
         self.public_key.clone()
     }
+    pub fn get_public_key_pem(&self) -> String {
+        self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap()
+    }
 
     pub fn get_private_key(&self) -> RsaPrivateKey {
         self.private_key.clone()
+    }
+    pub fn get_private_key_pem(&self) -> String {
+        self.private_key.to_pkcs8_pem(LineEnding::LF).unwrap().to_string() // Сериализуем в PKCS#8
     }
 
     pub fn get_amount(&self) -> f64 {
@@ -78,6 +88,31 @@ impl Wallet {
         } else {
             self.amount = amount;
         }
+    }
+
+    pub fn load_from_file(file_path: &str) -> Wallet {
+        // Проверяем существует ли файл
+        if Path::new(file_path).exists() {
+            // Если файл существует, читаем его содержимое
+            let mut file = File::open(file_path).expect("Не удалось открыть файл");
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).expect("Ошибка чтения файла");
+
+            // Пробуем десериализовать данные из JSON
+            Wallet::from_json(&contents)
+        } else {
+            // Если файла нет, создаем новый кошелек и сохраняем его
+            let wallet = Wallet::new();
+            wallet.save_to_file(file_path);
+            wallet
+        }
+    }
+
+    // Сохранение кошелька в файл
+    pub fn save_to_file(&self, file_path: &str) {
+        let json_str = self.to_json();
+        let mut file = File::create(file_path).expect("Не удалось создать файл");
+        file.write_all(json_str.as_bytes()).expect("Ошибка записи в файл");
     }
 }
 
