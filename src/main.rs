@@ -1,5 +1,3 @@
-mod coin;
-
 use std::collections::BinaryHeap;
 use std::io::{self, Write};
 use std::sync::{Arc, Condvar, Mutex};
@@ -8,11 +6,17 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+
+use rsa::pkcs1::DecodeRsaPublicKey;
+
 use crate::coin::blockchain::blockchain::Blockchain;
-use crate::coin::blockchain::transaction::SerializedTransaction;
+use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
+use crate::coin::blockchain::wallet::Wallet;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 use crate::coin::server::Server;
+
+mod coin;
 
 /// TODO Добавить логирование в программу
 
@@ -213,6 +217,12 @@ fn main() {
     let mining_flag = Arc::new((Mutex::new(false), Condvar::new()));
     let running = Arc::new(AtomicBool::new(true)); // To control the running state.
 
+    // Wallet load info
+    let wallet = Wallet::load_from_file("cache/wallet.json");
+    let public_key_pem = wallet.get_public_key_pem();
+    let private_key = wallet.get_private_key();
+    println!("Public wallet key: {}", public_key_pem);
+
     if get_input_text("Запустить майнинг[y/n]:") == "y" {
         let blockchain = Arc::clone(&blockchain);
         let mining_flag = Arc::clone(&mining_flag);
@@ -237,6 +247,7 @@ fn main() {
         println!("3. Выйти (exit)");
         println!("4. Получить блоки (blockchain)");
         println!("5. Создать транзакцию (transaction)");
+        println!("6. Получить публичный ключ (address)");
 
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["connect", address] => {
@@ -267,16 +278,37 @@ fn main() {
             }
             ["transaction", message @ ..] if !message.is_empty() => {
                 let message = message.join(" ");
+                let public_key = wallet.get_public_key();
+                // let receiver_pem = get_input_text("Укажи получателя");
 
-                let response_transaction = SerializedTransaction {
+                // let t = Transaction::new(public_key, )
+                let mut response_transaction = SerializedTransaction {
                     id: 0,
-                    sender: "".to_string().clone(),
-                    receiver: "".to_string().clone(),
+                    sender: public_key_pem.clone(),
+                    receiver: public_key_pem.clone(),
                     message,
                     tax: 1f64,
-                    signature: vec![],
+                    signature: "".to_string(),
                 };
-                p2p_protocol.lock().unwrap().response_transaction(response_transaction);
+
+                let mut signed_transaction = response_transaction.clone();
+                let transaction = Transaction::deserialize(response_transaction);
+
+                match transaction {
+                    Ok(mut transaction) => {
+                        transaction.sign(wallet.get_private_key());
+                        signed_transaction = transaction.serialize();
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e);
+                    }
+                }
+                dbg!(&signed_transaction);
+
+                p2p_protocol.lock().unwrap().response_transaction(signed_transaction);
+            }
+            ["address"] => {
+                println!("Public key: {}", public_key_pem);
             }
             _ => println!("Неверная команда."),
         }

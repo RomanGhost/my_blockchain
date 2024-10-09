@@ -1,3 +1,6 @@
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::Path;
 use rand::rngs::OsRng;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -21,8 +24,8 @@ impl Wallet {
     }
 
     pub fn serialize(&self) -> SerializedWallet {
-        let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
-        let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
+        let public_key_pem = self.get_public_key_pem();
+        let private_key_pem = self.get_private_key_pem();
 
         let serialized_wallet = SerializedWallet {
             public_key: public_key_pem,
@@ -63,9 +66,17 @@ impl Wallet {
     pub fn get_public_key(&self) -> RsaPublicKey {
         self.public_key.clone()
     }
+    pub fn get_public_key_pem(&self) -> String {
+        let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
+        public_key_pem
+    }
 
     pub fn get_private_key(&self) -> RsaPrivateKey {
         self.private_key.clone()
+    }
+    pub fn get_private_key_pem(&self) -> String {
+        let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
+        private_key_pem
     }
 
     pub fn get_amount(&self) -> f64 {
@@ -78,6 +89,31 @@ impl Wallet {
         } else {
             self.amount = amount;
         }
+    }
+
+    pub fn load_from_file(file_path: &str) -> Wallet {
+        // Проверяем существует ли файл
+        if Path::new(file_path).exists() {
+            // Если файл существует, читаем его содержимое
+            let mut file = File::open(file_path).expect("Не удалось открыть файл");
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).expect("Ошибка чтения файла");
+
+            // Пробуем десериализовать данные из JSON
+            Wallet::from_json(&contents)
+        } else {
+            // Если файла нет, создаем новый кошелек и сохраняем его
+            let wallet = Wallet::new();
+            wallet.save_to_file(file_path);
+            wallet
+        }
+    }
+
+    // Сохранение кошелька в файл
+    pub fn save_to_file(&self, file_path: &str) {
+        let json_str = self.to_json();
+        let mut file = File::create(file_path).expect("Не удалось создать файл");
+        file.write_all(json_str.as_bytes()).expect("Ошибка записи в файл");
     }
 }
 
