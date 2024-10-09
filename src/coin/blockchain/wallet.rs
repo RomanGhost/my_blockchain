@@ -4,7 +4,8 @@ use std::path::Path;
 use rand::rngs::OsRng;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding, DecodeRsaPrivateKey};
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
+use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey};
 
 // Структура кошелька
 #[derive(Clone)]
@@ -48,8 +49,8 @@ impl Wallet {
             Ok(serialized_wallet) => {
                 let public_key = RsaPublicKey::from_pkcs1_pem(&serialized_wallet.public_key)
                     .expect("Ошибка чтения публичного ключа");
-                let private_key = RsaPrivateKey::from_pkcs1_pem(&serialized_wallet.private_key)
-                    .expect("Ошибка чтения приватного ключа");
+                let private_key = RsaPrivateKey::from_pkcs8_pem(&serialized_wallet.private_key)
+                    .expect("Ошибка чтения приватного ключа");  // Десериализуем как PKCS#8
                 Wallet {
                     public_key,
                     private_key,
@@ -67,16 +68,14 @@ impl Wallet {
         self.public_key.clone()
     }
     pub fn get_public_key_pem(&self) -> String {
-        let public_key_pem = self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap();  // Сериализация публичного ключа в PEM
-        public_key_pem
+        self.public_key.to_pkcs1_pem(LineEnding::LF).unwrap()
     }
 
     pub fn get_private_key(&self) -> RsaPrivateKey {
         self.private_key.clone()
     }
     pub fn get_private_key_pem(&self) -> String {
-        let private_key_pem = self.private_key.to_pkcs1_pem(LineEnding::LF).unwrap(); // Сериализация приватного ключа в PEM
-        private_key_pem
+        self.private_key.to_pkcs8_pem(LineEnding::LF).unwrap().to_string() // Сериализуем в PKCS#8
     }
 
     pub fn get_amount(&self) -> f64 {
