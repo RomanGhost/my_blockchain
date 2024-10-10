@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use serde::{Serialize, Deserialize};
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
 use base64;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD_NO_PAD;
 use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, PublicKey};
 use sha2::Sha256;
 use rsa::signature::digest::Digest;
@@ -12,18 +14,28 @@ pub struct Transaction {
     sender: RsaPublicKey,
     receiver: RsaPublicKey,
     message: String,
+    transfer: f64,
     tax: f64,
     signature: String,
 }
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender: RsaPublicKey, receiver: RsaPublicKey, message: String, tax: f64) -> Transaction {
+    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64, tax: f64) -> Transaction {
+        let sender = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
+        ).expect("Ошибка чтения ключа отправителя");
+
+        let receiver = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&receiver_base64).unwrap()
+        ).expect("Ошибка чтения ключа получателя");
+
         Transaction {
             id: 0,
             sender,
             receiver,
             message,
+            transfer,
             tax,
             signature: "".to_string(),
         }
@@ -79,13 +91,17 @@ impl Transaction {
 
     pub fn serialize(&self) -> SerializedTransaction {
         let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let sender_base64 = STANDARD_NO_PAD.encode(sender_pem.as_bytes());
+
         let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let receiver_base64 = STANDARD_NO_PAD.encode(receiver_pem.as_bytes());
 
         SerializedTransaction {
             id: self.id,
-            sender: sender_pem,
-            receiver: receiver_pem,
+            sender: sender_base64,
+            receiver: receiver_base64,
             message: self.message.clone(),
+            transfer: self.transfer,
             tax: self.tax,
             signature: self.signature.clone(),
         }
@@ -93,18 +109,23 @@ impl Transaction {
 
     pub fn deserialize(serialized_transaction: SerializedTransaction) -> Result<Self, String> {
         // Десериализация публичного ключа отправителя
-        let sender = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.sender)
-            .map_err(|_| "Ошибка чтения публичного ключа отправителя".to_string())?;
+        let sender_base64 = serialized_transaction.sender;
+        let sender = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
+        ).expect("Ошибка чтения ключа отправителя");
 
         // Десериализация публичного ключа получателя
-        let receiver = RsaPublicKey::from_pkcs1_pem(&serialized_transaction.receiver)
-            .map_err(|_| "Ошибка чтения публичного ключа получателя".to_string())?;
+        let receiver_base64 = serialized_transaction.receiver;
+        let receiver = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&receiver_base64).unwrap()
+        ).expect("Ошибка чтения ключа получателя");
 
         Ok(Transaction {
             id: serialized_transaction.id,
             sender,
             receiver,
             message: serialized_transaction.message,
+            transfer: serialized_transaction.transfer,
             tax: serialized_transaction.tax,
             signature: serialized_transaction.signature,
         })
@@ -159,8 +180,41 @@ pub struct SerializedTransaction {
     pub sender: String,
     pub receiver: String,
     pub message: String,
+    pub transfer: f64,
     pub tax: f64,
     pub signature: String,
+}
+
+impl SerializedTransaction {
+    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64, tax: f64) -> SerializedTransaction {
+        SerializedTransaction {
+            id: 0,
+            sender: sender_base64,
+            receiver: receiver_base64,
+            message,
+            transfer,
+            tax,
+            signature: "".to_string(),
+        }
+    }
+
+    pub fn get_receiver(&self) -> String {
+        self.receiver.clone()
+    }
+
+    // Получение публичного ключа отправителя (конвертация обратно из PEM)
+    pub fn get_sender(&self) -> String {
+        self.sender.clone()
+    }
+
+    // Получение комиссии транзакции
+    pub fn get_tax(&self) -> f64 {
+        self.tax
+    }
+
+    pub fn get_transfer(&self) -> f64 {
+        self.transfer
+    }
 }
 
 impl Eq for SerializedTransaction {}
@@ -172,6 +226,7 @@ impl PartialEq for SerializedTransaction {
             self.receiver == other.receiver &&
             self.message == other.message &&
             self.tax == other.tax &&
+            self.transfer == other.transfer &&
             self.signature == other.signature
     }
 }

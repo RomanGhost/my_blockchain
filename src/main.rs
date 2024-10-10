@@ -34,6 +34,24 @@ fn get_input_text(info_text: &str) -> String {
     }
 }
 
+fn count_wallet_amount(my_public_key: String, blockchain: &Blockchain) -> f64 {
+    let chain = &blockchain.chain;
+    let mut amount = 0.0;
+    for block in chain {
+        let transactions = block.get_transactions();
+        for transaction in transactions {
+            if transaction.get_receiver() == my_public_key {
+                amount += transaction.transfer;
+            }
+            if transaction.get_sender() == my_public_key {
+                amount -= transaction.transfer;
+            }
+        }
+    }
+
+    amount
+}
+
 fn server_thread(server_address: String) -> (Server, Receiver<Message>, JoinHandle<()>) {
     // Initialize server.
     let (mut server, rx_server) = Server::new();
@@ -219,8 +237,7 @@ fn main() {
 
     // Wallet load info
     let wallet = Wallet::load_from_file("cache/wallet.json");
-    let public_key_pem = wallet.get_public_key_pem();
-    let private_key = wallet.get_private_key();
+    let public_key_pem = wallet.get_public_key_string();
     println!("Public wallet key: {}", public_key_pem);
 
     if get_input_text("Запустить майнинг[y/n]:") == "y" {
@@ -248,6 +265,7 @@ fn main() {
         println!("4. Получить блоки (blockchain)");
         println!("5. Создать транзакцию (transaction)");
         println!("6. Получить публичный ключ (address)");
+        println!("7. Получить счет кошелька (wallet)");
 
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["connect", address] => {
@@ -278,18 +296,16 @@ fn main() {
             }
             ["transaction", message @ ..] if !message.is_empty() => {
                 let message = message.join(" ");
-                let public_key = wallet.get_public_key();
-                // let receiver_pem = get_input_text("Укажи получателя");
+                let sender_key = wallet.get_public_key_string();
+                let receiver_key = get_input_text("Укажи получателя");
 
-                // let t = Transaction::new(public_key, )
-                let mut response_transaction = SerializedTransaction {
-                    id: 0,
-                    sender: public_key_pem.clone(),
-                    receiver: public_key_pem.clone(),
-                    message,
-                    tax: 1f64,
-                    signature: "".to_string(),
-                };
+                let mut response_transaction =
+                    SerializedTransaction::new(
+                        sender_key.clone(),
+                        receiver_key.clone(),
+                        message, 12.0, 1.0,
+                    );
+
                 let mut signed_transaction = response_transaction.clone();
                 let transaction = Transaction::deserialize(response_transaction);
 
@@ -302,8 +318,13 @@ fn main() {
                         eprintln!("{}", e);
                     }
                 }
-                dbg!(&signed_transaction);
+                println!("Подпись создана");
                 p2p_protocol.lock().unwrap().response_transaction(signed_transaction);
+            }
+            ["wallet"] => {
+                let my_key = wallet.get_public_key_string();
+                let blockchain = blockchain.lock().unwrap();
+                count_wallet_amount(my_key, &*blockchain);
             }
             ["address"] => {
                 println!("Public key: {}", public_key_pem);
@@ -311,6 +332,7 @@ fn main() {
             _ => println!("Неверная команда."),
         }
     }
+    /// TODO проработать правильный выход из программы
 
     // Signal threads to stop and wait for them to finish.
     running.store(false, Ordering::SeqCst);

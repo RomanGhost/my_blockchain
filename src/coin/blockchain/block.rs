@@ -70,4 +70,8 @@ impl Block{
     pub fn set_previous_hash(&mut self, last_hash:String){
         self.previous_hash = last_hash;
     }
+
+    pub fn get_transactions(&self) -> &Vec<SerializedTransaction> {
+        &self.transactions
+    }
 }
