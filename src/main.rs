@@ -297,7 +297,8 @@ fn main() {
             ["wallet"] => {
                 let my_key = wallet.get_public_key_string();
                 let blockchain = blockchain.lock().unwrap();
-                count_wallet_amount(my_key, &*blockchain);
+                let result = count_wallet_amount(my_key, &*blockchain);
+                println!("Счет кошелька: {}", result);
             }
             ["address"] => {
                 println!("Public key: {}", public_key_string);
