@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use rand::rngs::OsRng;
@@ -48,12 +48,15 @@ impl Wallet {
         let result: Result<SerializedWallet, serde_json::Error> = serde_json::from_str(json_str);
         match result {
             Ok(serialized_wallet) => {
+                let serialized_public_key = serialized_wallet.public_key.trim().to_string();
                 let public_key = RsaPublicKey::from_pkcs1_der(
-                    &STANDARD_NO_PAD.decode(&serialized_wallet.public_key).unwrap()
+                    &STANDARD_NO_PAD.decode(&serialized_public_key).unwrap()
                 ).expect("Ошибка чтения публичного ключа");
 
+                let serialized_private_key = serialized_wallet.private_key.trim().to_string();
+
                 let private_key = RsaPrivateKey::from_pkcs8_der(
-                    &STANDARD_NO_PAD.decode(&serialized_wallet.private_key).unwrap()
+                    &STANDARD_NO_PAD.decode(&serialized_private_key).unwrap()
                 ).expect("Ошибка чтения приватного ключа");
 
                 Wallet {
@@ -72,14 +75,12 @@ impl Wallet {
     // Возвращает публичный ключ в формате Base64
     pub fn get_public_key_string(&self) -> String {
         let public_key_der = self.public_key.to_pkcs1_der().unwrap();
-        // Преобразуем в срез байтов
         STANDARD_NO_PAD.encode(public_key_der.as_bytes())
     }
 
     // Возвращает приватный ключ в формате Base64
     pub fn get_private_key_string(&self) -> String {
         let private_key_der = self.private_key.to_pkcs8_der().unwrap();
-        // Преобразуем в срез байтов
         STANDARD_NO_PAD.encode(private_key_der.as_bytes())
     }
 

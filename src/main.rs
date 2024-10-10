@@ -237,8 +237,8 @@ fn main() {
 
     // Wallet load info
     let wallet = Wallet::load_from_file("cache/wallet.json");
-    let public_key_pem = wallet.get_public_key_string();
-    println!("Public wallet key: {}", public_key_pem);
+    let public_key_string = wallet.get_public_key_string();
+    println!("Public wallet key: {}", public_key_string);
 
     if get_input_text("Запустить майнинг[y/n]:") == "y" {
         let blockchain = Arc::clone(&blockchain);
@@ -327,7 +327,7 @@ fn main() {
                 count_wallet_amount(my_key, &*blockchain);
             }
             ["address"] => {
-                println!("Public key: {}", public_key_pem);
+                println!("Public key: {}", public_key_string);
             }
             _ => println!("Неверная команда."),
         }
