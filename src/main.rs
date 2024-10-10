@@ -160,33 +160,6 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
                         // println!("\tForce add");
                         chain.add_force_block(block);
                     } else {
-                        // println!("\tUsual add");
-                        //При получении блока смотрим, идет ли на опережение наш блокчейн
-                        let last_block = chain.get_last_block().unwrap();
-                        if last_block.get_datetime() > block.get_datetime()
-                        {
-                            println!("Проверяем блок по времени");
-                            let date_time_after = last_block.get_datetime();
-                            let missing_blocks = chain.get_blocks_after(date_time_after);
-                            for missing_block in missing_blocks {
-                                p2p_protocol.lock().unwrap().response_block(missing_block, true);
-                            }
-                            return;
-                        }
-                        if last_block.get_id() > block.get_id() {
-                            println!("Проверяем блок по id");
-                            let delta = last_block.get_id() - block.get_id() + 1;
-                            let missing_blocks = chain.get_last_n_blocks(delta);
-                            for missing_block in missing_blocks {
-                                p2p_protocol.lock().unwrap().response_block(missing_block, true);
-                            }
-                            return;
-                        }
-                        // //Если блок прошел предыдущие проверки, то валидируем его в нашей системе
-                        // if last_block.get_previous_hash() != block.get_previous_hash(){
-                        //     println!("Конфликт блоков!!!!");
-                        // }
-
                         chain.add_block(block);
                     }
                     // println!("Последний блок: {:?}", chain.get_last_block());
@@ -237,8 +210,8 @@ fn main() {
 
     // Wallet load info
     let wallet = Wallet::load_from_file("cache/wallet.json");
-    let public_key_pem = wallet.get_public_key_string();
-    println!("Public wallet key: {}", public_key_pem);
+    let public_key_string = wallet.get_public_key_string();
+    println!("Public wallet key: {}", public_key_string);
 
     if get_input_text("Запустить майнинг[y/n]:") == "y" {
         let blockchain = Arc::clone(&blockchain);
@@ -327,7 +300,7 @@ fn main() {
                 count_wallet_amount(my_key, &*blockchain);
             }
             ["address"] => {
-                println!("Public key: {}", public_key_pem);
+                println!("Public key: {}", public_key_string);
             }
             _ => println!("Неверная команда."),
         }

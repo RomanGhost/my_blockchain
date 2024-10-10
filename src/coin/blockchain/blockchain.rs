@@ -5,91 +5,68 @@ use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::transaction::SerializedTransaction;
 
 pub struct Blockchain {
-    pub chain:Vec<Block>,
+    pub chain: Vec<Block>,
     nonce_iteration: u64,
 }
+
 impl Blockchain {
     pub fn new() -> Blockchain {
         Blockchain {
-            chain:vec![],
-            nonce_iteration: 0
+            chain: Vec::new(),
+            nonce_iteration: 0,
         }
     }
 
-    pub fn add_block(&mut self, block:Block){
+    pub fn add_block(&mut self, block: Block) {
         let mut block = block;
-        match self.get_last_block(){
-            Ok(last_block) =>{
-                if block.get_previous_hash() == last_block.get_hash() {
-                    self.chain.push(block);
-                }
+        if let Ok(last_block) = self.get_last_block() {
+            if block.get_previous_hash() == last_block.get_hash() {
+                self.chain.push(block);
             }
-            Err(e)=>{
-                eprintln!("Error adding block: {e}");
-            }
-        };
-        // println!("Количество блоков в блокчейн: {}", self.chain.len());
+        } else {
+            eprintln!("Error adding block: chain is empty");
+        }
     }
 
-    pub fn add_force_block(&mut self, block:Block){
-        // let mut block = block;
-        // match self.get_last_block(){
-        //     Ok(last_block) =>{
-        //         if last_block.get_id() >= block.get_id() {
-        //             println!("Не можем добавить новый блок т.к. id последнего блока больше");
-        //             return;
-        //         }
-        //     }
-        //     Err(e)=>{
-        //         eprintln!("Error adding block: {e}");
-        //     }
-        // };
+    pub fn add_force_block(&mut self, block: Block) {
         self.chain.push(block);
     }
 
-    pub fn get_last_block(&self) -> Result<Block, &'static str>{
-        let chain_len = self.chain.len();
-        if chain_len <= 0 {
-            Err("chain is Empty")
-        } else{
-            Ok(self.chain[chain_len -1].clone())
+    pub fn get_last_block(&self) -> Result<Block, &'static str> {
+        if let Some(block) = self.chain.last() {
+            Ok(block.clone())
+        } else {
+            Err("chain is empty")
         }
     }
 
     pub fn create_first_block(&mut self) {
-        let word = "First block"; //Сделать это переменной окружения
+        let word = "First block";
         let mut hasher = Sha512::new();
         hasher.update(word);
         let result = hasher.finalize();
         let hex_string = format!("{:x}", result);
 
-        let block = Block::new(1, vec![], hex_string, 0);
+        let block = Block::new(1, Vec::new(), hex_string, 0);
         self.add_force_block(block);
     }
 
-    pub fn len(&self) -> usize{
+    pub fn len(&self) -> usize {
         self.chain.len()
     }
 
-    fn valid_block(&self, block:&Block) -> bool{
-        let block_hash = block.get_hash();
-        let start_with = "000";
-
-        &block_hash[..start_with.len()] == start_with
+    fn valid_block(&self, block: &Block) -> bool {
+        block.get_hash().starts_with("000")
     }
 
     pub fn proof_of_work(&mut self, transactions: Vec<SerializedTransaction>) -> bool {
-        let last_block = self.get_last_block();
-        let mut result = false;
-        match last_block {
-            Ok(b) => result = self._proof_of_work(b, transactions),
-            Err(_) => {
-                eprintln!("Блокчейн пуст");
-                self.create_first_block();
-                self.proof_of_work(transactions);
-            },
-        };
-        result
+        if let Ok(last_block) = self.get_last_block() {
+            self._proof_of_work(last_block, transactions)
+        } else {
+            eprintln!("Blockchain is empty, creating the first block.");
+            self.create_first_block();
+            self.proof_of_work(transactions)
+        }
     }
 
     fn _proof_of_work(&mut self, last_block: Block, transactions: Vec<SerializedTransaction>) -> bool {
@@ -101,30 +78,32 @@ impl Blockchain {
             self.nonce_iteration,
         );
 
-        let validation = self.valid_block(&block);
-        if validation {
+        if self.valid_block(&block) {
             println!("Create new block with id: {}", block.get_id());
             self.chain.push(block);
             self.nonce_iteration = 0;
+            return true;
         }
+
         self.nonce_iteration += 1;
-
-        validation
-
+        false
     }
 
     pub fn get_blocks_after(&self, datetime: DateTime<Utc>) -> Vec<Block> {
-        let result: Vec<Block> = self.chain
+        self.chain
             .iter()
-            .filter(|&block| datetime < block.get_datetime()) // Фильтруем блоки по дате
-            .cloned() // Преобразуем `&Block` в `Block` с помощью `cloned`
-            .collect(); // Собираем результат в `Vec<Block>`
-        result
+            .filter(|block| datetime < block.get_datetime())
+            .cloned()
+            .collect()
     }
 
-    pub fn get_last_n_blocks(&self, n:usize) -> Vec<Block> {
-        let last_n = &self.chain[self.chain.len().saturating_sub(n)..];
-        last_n.iter().cloned().collect()
+    pub fn get_last_n_blocks(&self, n: usize) -> Vec<Block> {
+        self.chain
+            .iter()
+            .rev()
+            .take(n)
+            .cloned()
+            .collect()
     }
 
     pub fn clear_nonce(&mut self) {
