@@ -19,7 +19,7 @@ fn get_input_text(info_text: &str) -> String {
 
 fn main() {
     let wallet = Wallet::load_from_file("cache/wallet.json");
-    let public_key_pem = wallet.get_public_key_pem();
-    let private_key = wallet.get_private_key_pem();
+    let public_key_pem = wallet.get_public_key_string();
+    let private_key = wallet.get_private_key_string();
     println!("Public wallet key: {}, {}", public_key_pem, private_key);
 }
