@@ -117,3 +117,27 @@ impl MessageAnswerFirstInfo {
         self.id = id;
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChainMessage {
+    id: u64,
+    chain: Vec<Block>,
+}
+
+impl ChainMessage {
+    pub fn new(chain: Vec<Block>) -> ChainMessage {
+        ChainMessage { id: 0, chain }
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn set_id(&mut self, id: u64) {
+        self.id = id;
+    }
+
+    pub fn get_chain(self) -> Vec<Block> {
+        self.chain
+    }
+}

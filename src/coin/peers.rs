@@ -120,6 +120,13 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
+    pub fn response_chain(&mut self, chain: Vec<Block>) {
+        let response_message = response::ChainMessage::new(chain);
+        let response_message = Message::ResponseChainMessage(response_message);
+
+        self.broadcast(response_message, false);
+    }
+
     pub fn broadcast(&mut self, mut message:Message, receive:bool){
         if !receive {
             self.last_message_id += 1;

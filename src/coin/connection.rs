@@ -5,12 +5,14 @@ use std::sync::{Arc, Mutex};
 
 pub struct ConnectionPool {
     peers: HashMap<String, TcpStream>,
+    buffer_size: usize,
 }
 
 impl ConnectionPool {
-    pub fn new() -> Self {
+    pub fn new(buffer_size: usize) -> Self {
         ConnectionPool {
             peers: HashMap::new(),
+            buffer_size,
         }
     }
 
@@ -50,6 +52,10 @@ impl ConnectionPool {
         for address in disconnected_peers {
             self.remove_peer(&address);
         }
+    }
+
+    pub fn get_buffer(&self) -> Vec<u8> {
+        vec![0; self.buffer_size]
     }
 }
 

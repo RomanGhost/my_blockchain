@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::sync::mpsc::Receiver;
@@ -18,7 +18,7 @@ pub struct Server {
 impl Server {
     pub fn new() -> (Self, Receiver<Message>) {
         let (tx, rx) = mpsc::channel();
-        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
+        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new(1024)));
         let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
 
         (
@@ -30,9 +30,9 @@ impl Server {
         )
     }
 
-    pub fn run(&mut self, address: &str) {
-        let listener = TcpListener::bind(address).expect("Could not bind to address");
+    pub fn run(&mut self, address: String) {
         println!("Server listening on {}", address);
+        let listener = TcpListener::bind(address).expect("Could not bind to address");
 
         for stream in listener.incoming() {
             match stream {
@@ -87,7 +87,8 @@ fn handle_connection(
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
     is_connect: bool,
 ) {
-    let mut buffer = vec![0; 1024];
+    let mut lock_connection_pool = connection_pool.lock().unwrap();
+    let mut buffer = lock_connection_pool.get_buffer();
     let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
 
     if is_connect {
@@ -98,7 +99,7 @@ fn handle_connection(
         match stream.read(&mut buffer) {
             Ok(0) => {
                 println!("Connection closed by peer: {}", peer_address);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                lock_connection_pool.remove_peer(&peer_address);
                 break;
             }
             Ok(n) => {
@@ -113,7 +114,7 @@ fn handle_connection(
             }
             Err(e) => {
                 eprintln!("Error reading from stream: {:?}", e);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                lock_connection_pool.remove_peer(&peer_address);
                 break;
             }
         }
