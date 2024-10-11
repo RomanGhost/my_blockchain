@@ -44,7 +44,7 @@ impl Server {
                     connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                     thread::spawn(move || {
-                        handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol);
+                        handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, false);
                     });
                 }
                 Err(e) => {
@@ -65,7 +65,7 @@ impl Server {
                 connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                 thread::spawn(move || {
-                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol);
+                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, true);
                 });
             }
             Err(e) => {
@@ -85,11 +85,14 @@ fn handle_connection(
     stream: &mut TcpStream,
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
+    is_connect: bool,
 ) {
     let mut buffer = vec![0; 1024];
     let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
 
-    p2p_protocol.lock().unwrap().request_first_message();
+    if is_connect {
+        p2p_protocol.lock().unwrap().request_first_message();
+    }
 
     loop {
         match stream.read(&mut buffer) {

@@ -22,6 +22,8 @@ impl Blockchain {
         if let Ok(last_block) = self.get_last_block() {
             if block.get_previous_hash() == last_block.get_hash() {
                 self.chain.push(block);
+            } else {
+                println!("Хеши не совпадают");
             }
         } else {
             eprintln!("Error adding block: chain is empty");
@@ -100,7 +102,6 @@ impl Blockchain {
     pub fn get_last_n_blocks(&self, n: usize) -> Vec<Block> {
         self.chain
             .iter()
-            .rev()
             .take(n)
             .cloned()
             .collect()

@@ -34,9 +34,10 @@ impl P2PProtocol {
                 match message {
                     Message::RequestMessageInfo(_) => {
                         self.response_first_message();
-                        let request_last_5_block = request::LastNBlocksMessage::new(5);
-                        let request_last_5_block_message = Message::RequestLastNBlocksMessage(request_last_5_block);
-                        self.sender.send(request_last_5_block_message).unwrap();
+                        // let n = 100;
+                        // let request_last_n_block = request::LastNBlocksMessage::new(n);
+                        // let request_last_n_block_message = Message::RequestLastNBlocksMessage(request_last_n_block);
+                        // self.sender.send(request_last_n_block_message).unwrap();
 
                         return;
                     }

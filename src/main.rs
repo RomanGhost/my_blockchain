@@ -109,7 +109,7 @@ fn mining_thread(blockchain: Arc<Mutex<Blockchain>>, mining_flag: Arc<(Mutex<boo
                     if let Ok(last_block) = chain.get_last_block() {
                         p2p_protocol.lock().unwrap().response_block(last_block, false);
                         transactions.clear();
-                        // println!("Отправлен новый блок");
+                        println!("Отправлен новый блок");
                     }
                 }
             }
@@ -144,25 +144,24 @@ fn message_thread(blockchain: Arc<Mutex<Blockchain>>, p2p_protocol: Arc<Mutex<P2
                 }
                 Message::ResponseBlockMessage(message) => {
                     let is_force_block = message.is_force();
-                    let block = message.get_block();
+                    let new_block = message.get_block();
+                    println!("Получен новый блок: {}", new_block.get_id());
+
                     let mut chain = blockchain.lock().unwrap();
 
-                    // Stop mining upon receiving a new block.
                     {
                         let (lock, _) = &*mining_flag;
                         let mut stop_flag = lock.lock().unwrap();
                         *stop_flag = true;
                     }
 
-                    // println!("Mining stopped");
-                    // println!("Adding new block");
+
                     if is_force_block {
-                        // println!("\tForce add");
-                        chain.add_force_block(block);
+                        chain.add_force_block(new_block);
                     } else {
-                        chain.add_block(block);
+                        chain.add_block(new_block);
                     }
-                    // println!("Последний блок: {:?}", chain.get_last_block());
+
 
                     // Signal to continue mining.
                     {
@@ -212,6 +211,7 @@ fn main() {
     let wallet = Wallet::load_from_file("cache/wallet.json");
     let public_key_string = wallet.get_public_key_string();
     println!("Public wallet key: {}", public_key_string);
+
 
     if get_input_text("Запустить майнинг[y/n]:") == "y" {
         let blockchain = Arc::clone(&blockchain);
