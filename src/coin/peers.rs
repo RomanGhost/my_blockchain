@@ -8,8 +8,7 @@ use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::message::{request, response};
-
-
+use crate::coin::message::request::LastNBlocksMessage;
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -123,6 +122,13 @@ impl P2PProtocol {
     pub fn response_chain(&mut self, chain: Vec<Block>) {
         let response_message = response::ChainMessage::new(chain);
         let response_message = Message::ResponseChainMessage(response_message);
+
+        self.broadcast(response_message, false);
+    }
+
+    pub fn request_chain(&mut self, chain_size: usize) {
+        let response_message = LastNBlocksMessage::new(chain_size);
+        let response_message = Message::RequestLastNBlocksMessage(response_message);
 
         self.broadcast(response_message, false);
     }

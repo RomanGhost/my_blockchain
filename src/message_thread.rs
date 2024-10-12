@@ -80,13 +80,16 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     let mut transaction_queue = app_state.queue.lock().unwrap();
                     // Удаляем транзакции из очереди, которые есть в новом блоке
                     transaction_queue.retain(|tx| !block_transactions.contains(tx));
-
-                    println!("Удалено {} транзакций из очереди", block_transactions.len());
+                    //
+                    // println!("Удалено {} транзакций из очереди", block_transactions.len());
 
                     if is_force_block {
                         chain.add_force_block(new_block);
                     } else {
-                        chain.add_block(new_block);
+                        if let Err(e) = chain.add_block(new_block) {
+                            println!("{}", e);
+                            app_state.p2p_protocol.lock().unwrap().request_chain(10);
+                        }
                     }
 
                     // Очищаем nonce после добавления блока

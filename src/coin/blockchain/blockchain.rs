@@ -17,16 +17,17 @@ impl Blockchain {
         }
     }
 
-    pub fn add_block(&mut self, block: Block) {
+    pub fn add_block(&mut self, block: Block) -> Result<Block, String> {
         let mut block = block;
         if let Ok(last_block) = self.get_last_block() {
             if block.get_previous_hash() == last_block.get_hash() {
-                self.chain.push(block);
+                self.chain.push(block.clone());
+                Ok(block)
             } else {
-                println!("Хеши не совпадают");
+                Err("Хеши не совпадают".to_string())
             }
         } else {
-            eprintln!("Error adding block: chain is empty");
+            Err("chain is empty".to_string())
         }
     }
 
