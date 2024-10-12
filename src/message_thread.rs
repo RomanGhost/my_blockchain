@@ -5,6 +5,8 @@ use std::thread;
 use std::thread::JoinHandle;
 use crate::app_state::AppState;
 use crate::coin::message::r#type::Message;
+use crate::coin::blockchain::block::Block;
+use crate::coin::blockchain::blockchain::validate_chain;
 
 pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) -> JoinHandle<()> {
     thread::spawn(move || {
@@ -16,15 +18,48 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
             match received {
                 Message::RequestLastNBlocksMessage(message) => {
                     let n = message.get_n();
+                    app_state.stop_mining();
                     let blocks = app_state.blockchain.lock().unwrap().get_last_n_blocks(n);
                     app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
+                    app_state.start_mining();
                 }
 
+                // Обработка ответа с цепочкой блоков
                 Message::ResponseChainMessage(message) => {
-                    let chain = message.get_chain();
-                    for b in chain {
-                        println!("{:?}", b);
+                    let new_chain = message.get_chain();
+                    println!("Получена цепочка с {} блоками", new_chain.len());
+
+                    // Остановка майнинга во время обработки цепочки
+                    app_state.stop_mining();
+
+                    // Захват локальной цепочки блоков
+                    let mut chain = app_state.blockchain.lock().unwrap();
+
+                    let new_chain_last_id = new_chain.last().map_or(0, |block| block.get_id());
+                    let local_chain_last_id = chain.get_last_block().map_or(0, |block| block.get_id());
+
+                    if new_chain_last_id > local_chain_last_id {
+                        println!("Новая цепочка длиннее локальной.");
+                    } else {
+                        println!("Локальная цепочка длиннее или равна новой.");
                     }
+
+                    // Проверка на совпадение длин и выбор лучшей цепочки
+                    if new_chain_last_id > local_chain_last_id {
+                        let n = new_chain.len();
+                        let local_chain = chain.get_last_n_blocks(n);
+                        if validate_chain(&local_chain, &new_chain) {
+                            println!("Цепочка валидна, обновление...");
+                            chain.chain = new_chain;
+                        } else {
+                            println!("Полученная цепочка невалидна");
+                        }
+                    } else {
+                        println!("Полученная цепочка короче или равна текущей, обновление не требуется");
+                    }
+
+                    // Перезапуск майнинга после синхронизации
+                    app_state.start_mining();
                 }
 
                 Message::ResponseBlockMessage(message) => {
@@ -32,7 +67,7 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     let new_block = message.get_block();
                     println!("Получен новый блок: {}", new_block.get_id());
 
-                    // Останавливаем майнинг
+                    // Остановка майнинга
                     app_state.stop_mining();
 
                     let mut chain = app_state.blockchain.lock().unwrap();
@@ -46,7 +81,7 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     // Очищаем nonce после добавления блока
                     chain.clear_nonce();
 
-                    // Перезапускаем майнинг
+                    // Перезапуск майнинга
                     app_state.start_mining();
                 }
                 Message::ResponseTransactionMessage(message) => {

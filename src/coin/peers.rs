@@ -122,7 +122,6 @@ impl P2PProtocol {
 
     pub fn response_chain(&mut self, chain: Vec<Block>) {
         let response_message = response::ChainMessage::new(chain);
-        println!("Отправляем цепочку блоков: {:?}", response_message);
         let response_message = Message::ResponseChainMessage(response_message);
 
         self.broadcast(response_message, false);
