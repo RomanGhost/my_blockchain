@@ -34,10 +34,10 @@ impl P2PProtocol {
                 match message {
                     Message::RequestMessageInfo(_) => {
                         self.response_first_message();
-                        // let n = 100;
-                        // let request_last_n_block = request::LastNBlocksMessage::new(n);
-                        // let request_last_n_block_message = Message::RequestLastNBlocksMessage(request_last_n_block);
-                        // self.sender.send(request_last_n_block_message).unwrap();
+                        let n = 100;
+                        let request_last_n_block = request::LastNBlocksMessage::new(n);
+                        let request_last_n_block_message = Message::RequestLastNBlocksMessage(request_last_n_block);
+                        self.sender.send(request_last_n_block_message).unwrap();
 
                         return;
                     }
@@ -80,7 +80,7 @@ impl P2PProtocol {
         println!("Отправлено сообщение на запрос id  сообщения в чате");
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
-
+        println!("Сообщение сформировано");
         //отправка сообщения в поток о том что нужно очистить свой блок
         self.broadcast(response_message, false);
     }
@@ -122,6 +122,7 @@ impl P2PProtocol {
 
     pub fn response_chain(&mut self, chain: Vec<Block>) {
         let response_message = response::ChainMessage::new(chain);
+        println!("Отправляем цепочку блоков: {:?}", response_message);
         let response_message = Message::ResponseChainMessage(response_message);
 
         self.broadcast(response_message, false);
@@ -135,7 +136,6 @@ impl P2PProtocol {
 
         let serialized_message = message.to_json();
         let mut connection_pool = self.connection_pool.lock().unwrap();
-
         connection_pool.broadcast(serialized_message.as_ref());
     }
 }

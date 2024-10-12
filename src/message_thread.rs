@@ -19,6 +19,7 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     let blocks = app_state.blockchain.lock().unwrap().get_last_n_blocks(n);
                     app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
                 }
+
                 Message::ResponseChainMessage(message) => {
                     let chain = message.get_chain();
                     for b in chain {

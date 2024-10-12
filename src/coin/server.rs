@@ -89,6 +89,8 @@ fn handle_connection(
 ) {
     let mut lock_connection_pool = connection_pool.lock().unwrap();
     let mut buffer = lock_connection_pool.get_buffer();
+    drop(lock_connection_pool);
+
     let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
 
     if is_connect {
@@ -98,6 +100,7 @@ fn handle_connection(
     loop {
         match stream.read(&mut buffer) {
             Ok(0) => {
+                let mut lock_connection_pool = connection_pool.lock().unwrap();
                 println!("Connection closed by peer: {}", peer_address);
                 lock_connection_pool.remove_peer(&peer_address);
                 break;
@@ -113,6 +116,7 @@ fn handle_connection(
                 }
             }
             Err(e) => {
+                let mut lock_connection_pool = connection_pool.lock().unwrap();
                 eprintln!("Error reading from stream: {:?}", e);
                 lock_connection_pool.remove_peer(&peer_address);
                 break;
