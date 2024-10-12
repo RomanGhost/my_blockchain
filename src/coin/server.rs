@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::sync::mpsc::Receiver;
@@ -18,7 +18,7 @@ pub struct Server {
 impl Server {
     pub fn new() -> (Self, Receiver<Message>) {
         let (tx, rx) = mpsc::channel();
-        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new()));
+        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new(1024)));
         let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
 
         (
@@ -30,9 +30,9 @@ impl Server {
         )
     }
 
-    pub fn run(&mut self, address: &str) {
-        let listener = TcpListener::bind(address).expect("Could not bind to address");
+    pub fn run(&mut self, address: String) {
         println!("Server listening on {}", address);
+        let listener = TcpListener::bind(address).expect("Could not bind to address");
 
         for stream in listener.incoming() {
             match stream {
@@ -44,7 +44,7 @@ impl Server {
                     connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                     thread::spawn(move || {
-                        handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol);
+                        handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, false);
                     });
                 }
                 Err(e) => {
@@ -65,7 +65,7 @@ impl Server {
                 connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                 thread::spawn(move || {
-                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol);
+                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, true);
                 });
             }
             Err(e) => {
@@ -85,17 +85,24 @@ fn handle_connection(
     stream: &mut TcpStream,
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
+    is_connect: bool,
 ) {
-    let mut buffer = vec![0; 1024];
+    let mut lock_connection_pool = connection_pool.lock().unwrap();
+    let mut buffer = lock_connection_pool.get_buffer();
+    drop(lock_connection_pool);
+
     let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
 
-    p2p_protocol.lock().unwrap().request_first_message();
+    if is_connect {
+        p2p_protocol.lock().unwrap().request_first_message();
+    }
 
     loop {
         match stream.read(&mut buffer) {
             Ok(0) => {
+                let mut lock_connection_pool = connection_pool.lock().unwrap();
                 println!("Connection closed by peer: {}", peer_address);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                lock_connection_pool.remove_peer(&peer_address);
                 break;
             }
             Ok(n) => {
@@ -109,8 +116,9 @@ fn handle_connection(
                 }
             }
             Err(e) => {
+                let mut lock_connection_pool = connection_pool.lock().unwrap();
                 eprintln!("Error reading from stream: {:?}", e);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                lock_connection_pool.remove_peer(&peer_address);
                 break;
             }
         }

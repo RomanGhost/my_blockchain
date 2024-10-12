@@ -17,14 +17,17 @@ impl Blockchain {
         }
     }
 
-    pub fn add_block(&mut self, block: Block) {
+    pub fn add_block(&mut self, block: Block) -> Result<Block, String> {
         let mut block = block;
         if let Ok(last_block) = self.get_last_block() {
             if block.get_previous_hash() == last_block.get_hash() {
-                self.chain.push(block);
+                self.chain.push(block.clone());
+                Ok(block)
+            } else {
+                Err("Хеши не совпадают".to_string())
             }
         } else {
-            eprintln!("Error adding block: chain is empty");
+            Err("chain is empty".to_string())
         }
     }
 
@@ -55,7 +58,7 @@ impl Blockchain {
         self.chain.len()
     }
 
-    fn valid_block(&self, block: &Block) -> bool {
+    pub fn valid_block(block: &Block) -> bool {
         block.get_hash().starts_with("000")
     }
 
@@ -78,7 +81,7 @@ impl Blockchain {
             self.nonce_iteration,
         );
 
-        if self.valid_block(&block) {
+        if Self::valid_block(&block) {
             println!("Create new block with id: {}", block.get_id());
             self.chain.push(block);
             self.nonce_iteration = 0;
@@ -100,7 +103,6 @@ impl Blockchain {
     pub fn get_last_n_blocks(&self, n: usize) -> Vec<Block> {
         self.chain
             .iter()
-            .rev()
             .take(n)
             .cloned()
             .collect()
@@ -109,4 +111,22 @@ impl Blockchain {
     pub fn clear_nonce(&mut self) {
         self.nonce_iteration = 0;
     }
+}
+
+pub fn validate_chain(blockchain: &Vec<Block>, new_chain: &Vec<Block>) -> bool {
+    for i in 1..new_chain.len() {
+        let current_block = &new_chain[i];
+        let previous_block = &new_chain[i - 1];
+
+        // Проверка корректности ссылок на предыдущие блоки
+        if current_block.get_previous_hash() != previous_block.get_hash() {
+            return false;
+        }
+
+        // Дополнительная проверка хешей и PoW
+        if !Blockchain::valid_block(current_block) {
+            return false;
+        }
+    }
+    true
 }

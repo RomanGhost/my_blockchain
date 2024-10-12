@@ -8,8 +8,7 @@ use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::message::{request, response};
-
-
+use crate::coin::message::request::LastNBlocksMessage;
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -34,9 +33,10 @@ impl P2PProtocol {
                 match message {
                     Message::RequestMessageInfo(_) => {
                         self.response_first_message();
-                        let request_last_5_block = request::LastNBlocksMessage::new(5);
-                        let request_last_5_block_message = Message::RequestLastNBlocksMessage(request_last_5_block);
-                        self.sender.send(request_last_5_block_message).unwrap();
+                        let n = 100;
+                        let request_last_n_block = request::LastNBlocksMessage::new(n);
+                        let request_last_n_block_message = Message::RequestLastNBlocksMessage(request_last_n_block);
+                        self.sender.send(request_last_n_block_message).unwrap();
 
                         return;
                     }
@@ -79,7 +79,7 @@ impl P2PProtocol {
         println!("Отправлено сообщение на запрос id  сообщения в чате");
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
-
+        println!("Сообщение сформировано");
         //отправка сообщения в поток о том что нужно очистить свой блок
         self.broadcast(response_message, false);
     }
@@ -119,6 +119,20 @@ impl P2PProtocol {
         stream.write_all(response.as_bytes()).unwrap();
     }
 
+    pub fn response_chain(&mut self, chain: Vec<Block>) {
+        let response_message = response::ChainMessage::new(chain);
+        let response_message = Message::ResponseChainMessage(response_message);
+
+        self.broadcast(response_message, false);
+    }
+
+    pub fn request_chain(&mut self, chain_size: usize) {
+        let response_message = LastNBlocksMessage::new(chain_size);
+        let response_message = Message::RequestLastNBlocksMessage(response_message);
+
+        self.broadcast(response_message, false);
+    }
+
     pub fn broadcast(&mut self, mut message:Message, receive:bool){
         if !receive {
             self.last_message_id += 1;
@@ -127,7 +141,6 @@ impl P2PProtocol {
 
         let serialized_message = message.to_json();
         let mut connection_pool = self.connection_pool.lock().unwrap();
-
         connection_pool.broadcast(serialized_message.as_ref());
     }
 }

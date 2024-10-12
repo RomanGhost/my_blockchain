@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use crate::coin::blockchain::block::Block;
 
 // Новый тип сообщения для запроса последних N блоков
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -7,7 +8,6 @@ pub struct LastNBlocksMessage {
     id: u64,
     n: usize, // Количество блоков, которые необходимо запросить
 }
-
 impl LastNBlocksMessage {
     pub fn new(n: usize) -> LastNBlocksMessage {
         LastNBlocksMessage { id: 0, n }
@@ -32,7 +32,6 @@ pub struct BlocksBeforeMessage {
     id: u64,
     time_stamp: DateTime<Utc>, // Запрашиваем все блоки до этого времени
 }
-
 impl BlocksBeforeMessage {
     pub fn new(time_stamp: DateTime<Utc>) -> BlocksBeforeMessage {
         BlocksBeforeMessage { id: 0, time_stamp }
@@ -55,7 +54,6 @@ impl BlocksBeforeMessage {
 pub struct MessageFirstInfo {
     id: u64
 }
-
 impl MessageFirstInfo {
     pub fn new() -> MessageFirstInfo {
         MessageFirstInfo { id: 0, }
@@ -69,4 +67,6 @@ impl MessageFirstInfo {
         self.id = id;
     }
 }
+
+
 

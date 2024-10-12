@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
 use crate::coin::message::request::{BlocksBeforeMessage, LastNBlocksMessage, MessageFirstInfo};
-use crate::coin::message::response::{BlockMessage, MessageAnswerFirstInfo, TextMessage, TransactionMessage};
+use crate::coin::message::response::{BlockMessage, ChainMessage, MessageAnswerFirstInfo, TextMessage, TransactionMessage};
 
 // Дополнительный перечисляемый тип для представления типов сообщений
 // #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +21,7 @@ pub enum Message {
     ResponseTransactionMessage(TransactionMessage),
     ResponseTextMessage(TextMessage),
     ResponseMessageInfo(MessageAnswerFirstInfo),
+    ResponseChainMessage(ChainMessage),
 
     RequestLastNBlocksMessage(LastNBlocksMessage),
     RequestBlocksBeforeMessage(BlocksBeforeMessage),
@@ -43,10 +44,12 @@ impl Message {
             Message::ResponseBlockMessage(msg) => msg.get_id(),
             Message::ResponseTransactionMessage(msg) => msg.get_id(),
             Message::ResponseTextMessage(msg) => msg.get_id(),
+            Message::ResponseMessageInfo(msg) => msg.get_id(),
+            Message::ResponseChainMessage(msg) => msg.get_id(),
+
             Message::RequestLastNBlocksMessage(msg) => msg.get_id(),
             Message::RequestBlocksBeforeMessage(msg) => msg.get_id(),
             Message::RequestMessageInfo(msg) => msg.get_id(),
-            Message::ResponseMessageInfo(msg) => msg.get_id(),
         }
     }
 
@@ -55,10 +58,12 @@ impl Message {
             Message::ResponseBlockMessage(msg) => msg.set_id(id),
             Message::ResponseTransactionMessage(msg) => msg.set_id(id),
             Message::ResponseTextMessage(msg) => msg.set_id(id),
+            Message::ResponseMessageInfo(msg) => msg.set_id(id),
+            Message::ResponseChainMessage(msg) => msg.set_id(id),
+
             Message::RequestLastNBlocksMessage(msg) => msg.set_id(id),
             Message::RequestBlocksBeforeMessage(msg) => msg.set_id(id),
             Message::RequestMessageInfo(msg) => msg.set_id(id),
-            Message::ResponseMessageInfo(msg) => msg.set_id(id),
         }
     }
 }
