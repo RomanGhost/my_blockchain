@@ -3,10 +3,12 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
+use chrono::serde::ts_seconds::serialize;
 use crate::app_state::AppState;
 use crate::coin::message::r#type::Message;
 use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::blockchain::validate_chain;
+use crate::coin::blockchain::transaction::Transaction;
 
 pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) -> JoinHandle<()> {
     thread::spawn(move || {
@@ -72,6 +74,15 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
 
                     let mut chain = app_state.blockchain.lock().unwrap();
 
+                    // Получаем список транзакций из нового блока
+                    let block_transactions = new_block.get_transactions();
+
+                    let mut transaction_queue = app_state.queue.lock().unwrap();
+                    // Удаляем транзакции из очереди, которые есть в новом блоке
+                    transaction_queue.retain(|tx| !block_transactions.contains(tx));
+
+                    println!("Удалено {} транзакций из очереди", block_transactions.len());
+
                     if is_force_block {
                         chain.add_force_block(new_block);
                     } else {
@@ -87,8 +98,15 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                 Message::ResponseTransactionMessage(message) => {
                     let new_transaction = message.get_transaction();
                     println!("Получена новая транзакция! > {:?}", new_transaction);
-                    app_state.queue.lock().unwrap().push(new_transaction);
-                    println!("Транзакция добавлена в очередь");
+                    let transaction = Transaction::deserialize(new_transaction).unwrap();
+                    let is_valid = transaction.verify();
+                    if is_valid {
+                        let serialize = transaction.serialize();
+                        app_state.queue.lock().unwrap().push(serialize);
+                        println!("Транзакция добавлена в очередь");
+                    } else {
+                        println!("Транзакция не валидна");
+                    }
                 }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
