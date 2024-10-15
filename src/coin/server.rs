@@ -13,7 +13,7 @@ use crate::coin::peers::P2PProtocol;
 #[derive(Clone)]
 pub struct Server {
     connection_pool: Arc<Mutex<ConnectionPool>>,
-    p2p_protocol: Arc<Mutex<P2PProtocol>>
+    p2p_protocol: Arc<Mutex<P2PProtocol>>,
 }
 
 impl Server {
