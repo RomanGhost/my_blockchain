@@ -6,6 +6,8 @@ use crate::commands::{get_input_text, handle_user_commands};
 use crate::message_thread::message_thread;
 use crate::mining_thread::mining_thread;
 use crate::server_thread::server_thread;
+use log::{info, warn, error};
+use env_logger;
 
 mod coin;
 mod server_thread;
@@ -16,6 +18,14 @@ mod message_thread;
 mod mining_thread;
 
 fn main() {
+    // // Инициализируем логгер
+    env_logger::init();
+    //
+    // // Пример логгирования сообщений с разным уровнем
+    info!("Program run");
+    // warn!("This is a warning.");
+    // error!("This is an error message.");
+
     // Инициализация сервера
     let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
     let (server_clone, rx_server, server_thread_handle) = server_thread(address);
@@ -61,4 +71,5 @@ fn main() {
     }
     message_thread_handle.join().unwrap();
     server_thread_handle.join().unwrap();
+    info!("Program end");
 }

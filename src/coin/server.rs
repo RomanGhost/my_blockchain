@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
 use std::sync::mpsc::Receiver;
 use std::thread;
+use log::{error, info, warn};
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
@@ -31,9 +32,18 @@ impl Server {
     }
 
     pub fn run(&mut self, address: String) {
-        println!("Server listening on {}", address);
-        let listener = TcpListener::bind(address).expect("Could not bind to address");
+        let listener = match TcpListener::bind(address.clone()) {
+            Ok(listener) => {
+                info!("Successfully bound to address {}", address);
+                listener
+            },
+            Err(e) => {
+                error!("Could not bind to address {}: {}", address, e);
+                return; // Останавливаем выполнение программы
+            }
+        };
 
+        // Обработка входящих подключений
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
@@ -48,7 +58,7 @@ impl Server {
                     });
                 }
                 Err(e) => {
-                    eprintln!("Failed to accept a connection: {:?}", e);
+                    warn!("Failed to accept a connection: {:?}", e);
                 }
             }
         }
@@ -57,7 +67,7 @@ impl Server {
     pub fn connect(&self, ip: &str, port: u16) {
         match TcpStream::connect((ip, port)) {
             Ok(mut stream) => {
-                println!("Успешно подключено к {}:{}", ip, port);
+                info!("Successful connected to {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
                 let p2p_protocol = self.p2p_protocol.clone();
 
@@ -69,7 +79,7 @@ impl Server {
                 });
             }
             Err(e) => {
-                eprintln!("Не удалось подключиться: {:?}", e);
+                warn!("Can not connect to: {:?}", e);
             }
         }
     }
@@ -101,7 +111,7 @@ fn handle_connection(
         match stream.read(&mut buffer) {
             Ok(0) => {
                 let mut lock_connection_pool = connection_pool.lock().unwrap();
-                println!("Connection closed by peer: {}", peer_address);
+                info!("Connection closed by peer: {}", peer_address);
                 lock_connection_pool.remove_peer(&peer_address);
                 break;
             }
@@ -111,13 +121,14 @@ fn handle_connection(
 
                 // Обработка буфера построчно
                 while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
+                    info!("New message received");
                     p2p_protocol.lock().unwrap().handle_message(&message);
                     accumulated_data = remaining_data;
                 }
             }
             Err(e) => {
                 let mut lock_connection_pool = connection_pool.lock().unwrap();
-                eprintln!("Error reading from stream: {:?}", e);
+                warn!("Error reading from stream: {:?}", e);
                 lock_connection_pool.remove_peer(&peer_address);
                 break;
             }

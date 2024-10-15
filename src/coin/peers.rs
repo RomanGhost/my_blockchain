@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
+use log::{info, warn};
 use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::connection::ConnectionPool;
@@ -46,7 +47,7 @@ impl P2PProtocol {
                         if self.last_message_id < message_id {
                             self.last_message_id = message_id;
                         }
-                        println!("Получено сообщение об id сообщения: {}/{}", msg.get_id(), self.last_message_id);
+                        info!("Получено сообщение об id сообщения: {}/{}", msg.get_id(), self.last_message_id);
                         return;
                     }
                     (_)=>{}
@@ -64,22 +65,22 @@ impl P2PProtocol {
                 self.broadcast(message, true);
             }
             Err(e) => {
-                eprintln!("Failed to deserialize response_message: {}, {}", e, message_json);
+                warn!("Failed to deserialize response_message: {}, {}", e, message_json);
             }
         }
     }
 
     fn response_ping(&self, peer_address: &str, stream: &mut TcpStream) {
-        println!("Handling ping from: {}", peer_address);
+        info!("Handling ping from: {}", peer_address);
         let response = format!("pong from {}", peer_address);
         stream.write_all(response.as_bytes()).unwrap();
     }
 
     pub fn request_first_message(&mut self){
-        println!("Отправлено сообщение на запрос id  сообщения в чате");
+        info!("Отправлено сообщение на запрос id  сообщения в чате");
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
-        println!("Сообщение сформировано");
+        info!("Сообщение сформировано");
         //отправка сообщения в поток о том что нужно очистить свой блок
         self.broadcast(response_message, false);
     }

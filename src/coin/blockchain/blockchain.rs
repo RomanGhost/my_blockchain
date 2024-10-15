@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use log::{info, warn};
 use sha2::{Digest, Sha512};
 
 use crate::coin::blockchain::block::Block;
@@ -66,7 +67,7 @@ impl Blockchain {
         if let Ok(last_block) = self.get_last_block() {
             self._proof_of_work(last_block, transactions)
         } else {
-            eprintln!("Blockchain is empty, creating the first block.");
+            warn!("Blockchain is empty, creating the first block.");
             self.create_first_block();
             self.proof_of_work(transactions)
         }
@@ -82,7 +83,7 @@ impl Blockchain {
         );
 
         if Self::valid_block(&block) {
-            println!("Create new block with id: {}", block.get_id());
+            info!("Create new block with id: {}", block.get_id());
             self.chain.push(block);
             self.nonce_iteration = 0;
             return true;
