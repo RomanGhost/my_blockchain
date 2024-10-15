@@ -3,12 +3,11 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
-use chrono::serde::ts_seconds::serialize;
+
 use crate::app_state::AppState;
-use crate::coin::message::r#type::Message;
-use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::blockchain::validate_chain;
 use crate::coin::blockchain::transaction::Transaction;
+use crate::coin::message::r#type::Message;
 
 pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) -> JoinHandle<()> {
     thread::spawn(move || {
