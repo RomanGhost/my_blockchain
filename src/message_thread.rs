@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
-
+use log::warn;
 use crate::app_state::AppState;
 use crate::coin::blockchain::blockchain::validate_chain;
 use crate::coin::blockchain::transaction::Transaction;
@@ -100,15 +100,21 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                 Message::ResponseTransactionMessage(message) => {
                     let new_transaction = message.get_transaction();
                     println!("Получена новая транзакция! > {:?}", new_transaction);
-                    let transaction = Transaction::deserialize(new_transaction).unwrap();
-                    let is_valid = transaction.verify();
-                    if is_valid {
-                        let serialize = transaction.serialize();
-                        app_state.queue.lock().unwrap().push(serialize);
-                        println!("Транзакция добавлена в очередь");
-                    } else {
-                        println!("Транзакция не валидна");
+
+                    let mut signed_transaction = new_transaction.clone();
+
+                    let transaction = Transaction::deserialize(new_transaction);
+                    match transaction {
+                        Ok(mut transaction) => {
+                            transaction.sign(app_state.wallet.get_private_key());
+                            signed_transaction = transaction.serialize();
+                        }
+                        Err(e) => {
+                            warn!("Transaction error: {}", e);
+                        }
                     }
+                    app_state.queue.lock().unwrap().push(signed_transaction);
+                    println!("Транзакция подписана и добавлена в очередь");
                 }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
