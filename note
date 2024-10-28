@@ -1,17 +1,4 @@
-труктура сообщений по передаче в сети
-
-При рассылке пблоков по сети(common)
-{
- 'id': int
- 'block': jsonBlock
- 'time_stamp': utime
-}
-
-При подключении к сети
-{
- 'last_id': int
- 'ip_port': string
-}
+TODO передавать узлы которые новому подключению
 
 transaction 1
 MIIBCgKCAQEAoNt57qcf0bwALgfI15aVI0SCImTKyqD6l98t69v+3JnmANv/yHDWULgBUq3JDYQkgkSn9E5MDSbZc6MwPZfx6Se5mV/yO+MG288YpUiImSuJ1Lge9QXdVJysY5yJXHZs/j3oXpC7FhULM0smgnY9bs1z7WZauTlRZoKefoY8Mss2ozr3Dd/BtPHNIAfS2vSltefb1MrjUk3QBRC9blSUv4ki9Uyxop1hYpuEIS1VLky/qMmHpumEd6s5sr3kSKOs+vfiiM9HfkrYa0/62wiu36u2RgbThUqCPN+Kp/7U1lsW2OokEA2xALQRYZ6darsGaFwzNAOp+hIyrP1D2tXrrQIDAQAB

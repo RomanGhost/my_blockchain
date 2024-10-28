@@ -13,7 +13,7 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
     thread::spawn(move || {
         for received in rx_server {
             if !app_state.running.load(Ordering::SeqCst) {
-                break; // Выход из цикла, если программа не работает.
+                break; // Выход из цикла, если программа не закончила работу
             }
 
             match received {

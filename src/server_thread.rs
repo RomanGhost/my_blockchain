@@ -10,7 +10,7 @@ pub fn server_thread(address: String) -> (Server, Receiver<Message>, JoinHandle<
 
     // Input server address and run it in a separate thread.
     let server_thread = thread::spawn(move || {
-        server.run(address); // можно заменить на динамический ввод адреса
+        server.run(address);
     });
 
     (server_clone, rx_server, server_thread)

@@ -163,6 +163,7 @@ impl Wallet {
 
             Wallet::from_json(&contents)
         } else {
+            // todo Создание папки если ее нет
             warn!("Wallet file not found, creating a new one at: {}", file_path);
             let wallet = Wallet::new();
             wallet.save_to_file(file_path);
