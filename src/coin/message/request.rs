@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::coin::blockchain::block::Block;
 
 // Новый тип сообщения для запроса последних N блоков
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -3,16 +3,6 @@ use serde_json;
 use crate::coin::message::request::{BlocksBeforeMessage, LastNBlocksMessage, MessageFirstInfo};
 use crate::coin::message::response::{BlockMessage, ChainMessage, MessageAnswerFirstInfo, TextMessage, TransactionMessage};
 
-// Дополнительный перечисляемый тип для представления типов сообщений
-// #[derive(Debug, PartialEq, Eq)]
-// pub enum MessageType {
-//     ResponseBlock,
-//     ResponseTransaction,
-//     ResponseText,
-//     RequestLastNBlocks,      // Новый тип сообщения для запроса последних N блоков
-//     RequestBlocksBefore,      // Новый тип сообщения для запроса блоков до определенной даты
-// }
-
 // Обобщённый тип сообщения, содержащий разные варианты
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "content")] // Добавляем тег для типа сообщения
