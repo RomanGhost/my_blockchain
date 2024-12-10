@@ -1,15 +1,16 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use log::{error, info, warn};
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 
-/// TODO создать функцию clone внутри
-/// TODO добавить мягкое завершение потоков
+/// Ожидаемая последовательность для проверки допустимости клиента
+const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!";
+
 #[derive(Clone)]
 pub struct Server {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -17,18 +18,16 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new() -> (Self, Receiver<Message>) {
-        let (tx, rx) = mpsc::channel();
+    pub fn new(tx: Sender<Message>) -> Self {
         let connection_pool = Arc::new(Mutex::new(ConnectionPool::new(1024)));
         let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
 
-        (
-            Server {
-                connection_pool,
-                p2p_protocol,
-            },
-            rx,
-        )
+
+        Server {
+            connection_pool,
+            p2p_protocol,
+        }
+
     }
 
     pub fn run(&mut self, address: String) {
@@ -39,11 +38,10 @@ impl Server {
             },
             Err(e) => {
                 error!("Could not bind to address {}: {}", address, e);
-                return; // Останавливаем выполнение программы
+                return;
             }
         };
 
-        // Обработка входящих подключений
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
@@ -51,10 +49,11 @@ impl Server {
                     let p2p_protocol = self.p2p_protocol.clone();
 
                     let peer_address = stream.peer_addr().unwrap().to_string();
-                    connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                     thread::spawn(move || {
-                        handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, false);
+                        if let Err(e) = handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, false) {
+                            warn!("Failed to handle connection: {:?}", e);
+                        }
                     });
                 }
                 Err(e) => {
@@ -67,7 +66,7 @@ impl Server {
     pub fn connect(&self, ip: &str, port: u16) {
         match TcpStream::connect((ip, port)) {
             Ok(mut stream) => {
-                info!("Successful connected to {}:{}", ip, port);
+                info!("Successfully connected to {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
                 let p2p_protocol = self.p2p_protocol.clone();
 
@@ -75,11 +74,13 @@ impl Server {
                 connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                 thread::spawn(move || {
-                    handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, true);
+                    if let Err(e) = handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, true) {
+                        warn!("Failed to handle connection: {:?}", e);
+                    }
                 });
             }
             Err(e) => {
-                warn!("Can not connect to: {:?}", e);
+                warn!("Cannot connect to: {:?}", e);
             }
         }
     }
@@ -96,53 +97,48 @@ fn handle_connection(
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
     is_connect: bool,
-) {
-    let mut lock_connection_pool = connection_pool.lock().unwrap();
-    let mut buffer = lock_connection_pool.get_buffer();
-    drop(lock_connection_pool);
+) -> Result<(), std::io::Error> {
+    let mut buffer = vec![0; 1024];
+    let mut accumulated_data = String::new();
 
-    let mut accumulated_data = String::new(); // Строковый буфер для хранения неполных данных
+    // Получаем первое сообщение и проверяем последовательность
+    stream.read_to_string(&mut accumulated_data)?;
+    if accumulated_data.trim() != HANDSHAKE_MESSAGE {
+        warn!("Unauthorized client attempted to connect from {}", peer_address);
+        stream.write_all(b"Unauthorized\n")?;
+        return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Unauthorized client"));
+    }
+
+    info!("Authorized client connected from {}", peer_address);
+    connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
     if is_connect {
         p2p_protocol.lock().unwrap().request_first_message();
     }
 
     loop {
-        match stream.read(&mut buffer) {
-            Ok(0) => {
-                let mut lock_connection_pool = connection_pool.lock().unwrap();
-                info!("Connection closed by peer: {}", peer_address);
-                lock_connection_pool.remove_peer(&peer_address);
-                break;
-            }
-            Ok(n) => {
-                // Добавляем полученные данные в строковый буфер
-                accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
+        let n = stream.read(&mut buffer)?;
+        if n == 0 {
+            info!("Connection closed by peer: {}", peer_address);
+            connection_pool.lock().unwrap().remove_peer(&peer_address);
+            break;
+        }
 
-                // Обработка буфера построчно
-                while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
-                    info!("New message received");
-                    p2p_protocol.lock().unwrap().handle_message(&message);
-                    accumulated_data = remaining_data;
-                }
-            }
-            Err(e) => {
-                let mut lock_connection_pool = connection_pool.lock().unwrap();
-                warn!("Error reading from stream: {:?}", e);
-                lock_connection_pool.remove_peer(&peer_address);
-                break;
-            }
+        accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
+        while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
+            info!("New message received: {}", message);
+            p2p_protocol.lock().unwrap().handle_message(&message);
+            accumulated_data = remaining_data;
         }
     }
+    Ok(())
 }
 
 /// Извлекает одно сообщение из буфера данных, разделенных `\n`.
-/// Возвращает кортеж (сообщение, остаток данных).
 fn extract_message(data: &str) -> Option<(String, String)> {
     if let Some(index) = data.find('\n') {
-        // Находим первое сообщение и остаток
         let message = data[..index].to_string();
-        let remaining = data[(index + 1)..].to_string(); // Пропускаем символ новой строки
+        let remaining = data[(index + 1)..].to_string();
         Some((message, remaining))
     } else {
         None

@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Formatter;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha512};
 use serde::{Serialize, Deserialize};
@@ -32,11 +34,11 @@ impl Block{
         }
     }
 
-    pub fn to_string(&self) ->String{
-        format!("id: {}\ntime_create: {}\nprevious_hash: {}\nnonce: {}",
-                self.id, self.time_create, self.previous_hash,
-                self.nonce)
-    }
+    // pub fn to_string(&self) ->String{
+    //     format!("id: {}\ntime_create: {}\nprevious_hash: {}\nnonce: {}",
+    //             self.id, self.time_create, self.previous_hash,
+    //             self.nonce)
+    // }
 
     pub fn get_hash(&self) ->String{
         let mut hasher = Sha512::new();
@@ -73,5 +75,13 @@ impl Block{
 
     pub fn get_transactions(&self) -> &Vec<SerializedTransaction> {
         &self.transactions
+    }
+}
+
+impl fmt::Display for Block{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "id: {}\ntime_create: {}\nprevious_hash: {}\nnonce: {}",
+               self.id, self.time_create, self.previous_hash,
+               self.nonce)
     }
 }

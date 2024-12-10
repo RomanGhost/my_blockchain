@@ -1,4 +1,6 @@
 use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Formatter;
 use serde::{Serialize, Deserialize};
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
 use base64;
@@ -70,14 +72,6 @@ impl Transaction {
         let public_key = self.sender.clone();
         let padding = PaddingScheme::new_pkcs1v15_sign_raw();
         public_key.verify(padding, &hashed_message, &signature_bytes).is_ok()
-    }
-
-    // Преобразование транзакции в строку (для демонстрации)
-    pub fn to_string(&self) -> String {
-        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
-        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
-
-        format!("{}:{}:{}:{}", sender_pem, receiver_pem, self.message, self.tax)
     }
 
     pub fn serialize(&self) -> SerializedTransaction {
@@ -167,6 +161,15 @@ impl Transaction {
     // Получение сообщения транзакции
     pub fn get_message(&self) -> String {
         self.message.clone()
+    }
+}
+
+impl fmt::Display for Transaction{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
+        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
+
+        write!(f, "{}:{}:{}:{}", sender_pem, receiver_pem, self.message, self.tax)
     }
 }
 
