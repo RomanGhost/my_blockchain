@@ -1,4 +1,6 @@
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
+use log::{info, warn, error};
+
 use crate::app_state::AppState;
 use crate::blockchain_functions::initialize_blockchain;
 use crate::coin::blockchain::wallet::Wallet;
@@ -6,7 +8,6 @@ use crate::commands::{get_input_text, handle_user_commands};
 use crate::message_thread::message_thread;
 use crate::mining_thread::mining_thread;
 use crate::server_thread::server_thread;
-use log::{info, warn, error};
 use env_logger;
 
 mod coin;
@@ -23,8 +24,6 @@ fn main() {
     //
     // // Пример логгирования сообщений с разным уровнем
     info!("Program run");
-    // warn!("This is a warning.");
-    // error!("This is an error message.");
 
     // Инициализация сервера
     let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");

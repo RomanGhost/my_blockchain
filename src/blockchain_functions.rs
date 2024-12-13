@@ -15,9 +15,6 @@ pub fn count_wallet_amount(my_public_key: String, blockchain: &Blockchain) -> f6
     for block in chain {
         let transactions = block.get_transactions();
         for transaction in transactions {
-            if transaction.get_receiver() == my_public_key {
-                amount += transaction.transfer;
-            }
             if transaction.get_sender() == my_public_key {
                 amount -= transaction.transfer;
             }

@@ -12,12 +12,9 @@ use rsa::signature::digest::Digest;
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    id: u64,
     sender: RsaPublicKey,
-    receiver: RsaPublicKey,
     message: String,
     transfer: f64,
-    tax: f64,
     signature: String,
 }
 
@@ -33,12 +30,9 @@ impl Transaction {
         ).expect("Ошибка чтения ключа получателя");
 
         Transaction {
-            id: 0,
             sender,
-            receiver,
             message,
             transfer,
-            tax,
             signature: "".to_string(),
         }
     }
@@ -78,16 +72,10 @@ impl Transaction {
         let sender_der = self.sender.to_pkcs1_der().unwrap();
         let sender_base64 = STANDARD_NO_PAD.encode(sender_der.as_bytes());
 
-        let receiver_der = self.receiver.to_pkcs1_der().unwrap();
-        let receiver_base64 = STANDARD_NO_PAD.encode(receiver_der.as_bytes());
-
         SerializedTransaction {
-            id: self.id,
             sender: sender_base64,
-            receiver: receiver_base64,
             message: self.message.clone(),
             transfer: self.transfer,
-            tax: self.tax,
             signature: self.signature.clone(),
         }
     }
@@ -98,18 +86,10 @@ impl Transaction {
             &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
         ).expect("Ошибка чтения ключа отправителя");
 
-        let receiver_base64 = serialized_transaction.receiver;
-        let receiver = RsaPublicKey::from_pkcs1_der(
-            &STANDARD_NO_PAD.decode(&receiver_base64).unwrap()
-        ).expect("Ошибка чтения ключа получателя");
-
         Ok(Transaction {
-            id: serialized_transaction.id,
             sender,
-            receiver,
             message: serialized_transaction.message,
             transfer: serialized_transaction.transfer,
-            tax: serialized_transaction.tax,
             signature: serialized_transaction.signature,
         })
     }
@@ -133,25 +113,12 @@ impl Transaction {
         }
     }
 
-    // Получение ID транзакции
-    pub fn get_id(&self) -> u64 {
-        self.id
-    }
-
-    // Получение публичного ключа получателя
-    pub fn get_receiver(&self) -> RsaPublicKey {
-        self.receiver.clone()
-    }
 
     // Получение публичного ключа отправителя
     pub fn get_sender(&self) -> RsaPublicKey {
         self.sender.clone()
     }
 
-    // Получение комиссии транзакции
-    pub fn get_tax(&self) -> f64 {
-        self.tax
-    }
 
     // Получение суммы перевода
     pub fn get_transfer(&self) -> f64 {
@@ -167,49 +134,33 @@ impl Transaction {
 impl fmt::Display for Transaction{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let sender_pem = self.sender.to_pkcs1_pem(LineEnding::LF).unwrap();
-        let receiver_pem = self.receiver.to_pkcs1_pem(LineEnding::LF).unwrap();
 
-        write!(f, "{}:{}:{}:{}", sender_pem, receiver_pem, self.message, self.tax)
+        write!(f, "{}:{}", sender_pem, self.message)
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SerializedTransaction {
-    pub id: u64,
     pub sender: String,
-    pub receiver: String,
     pub message: String,
     pub transfer: f64,
-    pub tax: f64,
     pub signature: String,
 }
 
 impl SerializedTransaction {
-    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64, tax: f64) -> SerializedTransaction {
+    pub fn new(sender_base64: String, message: String, transfer: f64) -> SerializedTransaction {
         let sender_base64 = sender_base64.trim().to_string();
-        let receiver_base64 = receiver_base64.trim().to_string();
 
         SerializedTransaction {
-            id: 0,
             sender: sender_base64,
-            receiver: receiver_base64,
             message,
             transfer,
-            tax,
             signature: "".to_string(),
         }
     }
 
-    pub fn get_receiver(&self) -> String {
-        self.receiver.clone()
-    }
-
     pub fn get_sender(&self) -> String {
         self.sender.clone()
-    }
-
-    pub fn get_tax(&self) -> f64 {
-        self.tax
     }
 
     pub fn get_transfer(&self) -> f64 {
@@ -221,11 +172,8 @@ impl Eq for SerializedTransaction {}
 
 impl PartialEq for SerializedTransaction {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id &&
             self.sender == other.sender &&
-            self.receiver == other.receiver &&
             self.message == other.message &&
-            self.tax == other.tax &&
             self.transfer == other.transfer &&
             self.signature == other.signature
     }
@@ -234,7 +182,7 @@ impl PartialEq for SerializedTransaction {
 // Реализуем Ord для сортировки по приоритету
 impl Ord for SerializedTransaction {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.tax.partial_cmp(&other.tax).unwrap_or(Ordering::Equal)
+        self.transfer.partial_cmp(&other.transfer).unwrap_or(Ordering::Equal)
     }
 }
 

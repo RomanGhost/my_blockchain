@@ -63,11 +63,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
                 let receiver_key = get_input_text("Укажи получателя");
 
                 let mut response_transaction =
-                    SerializedTransaction::new(
-                        sender_key.clone(),
-                        receiver_key.clone(),
-                        message, 12.0, 1.0,
-                    );
+                    SerializedTransaction::new(sender_key.clone(), message, 12.0);
 
                 let mut signed_transaction = response_transaction.clone();
                 let transaction = Transaction::deserialize(response_transaction);
