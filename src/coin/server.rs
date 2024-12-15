@@ -99,13 +99,12 @@ fn handle_connection(
     is_connect: bool,
 ) -> Result<(), std::io::Error> {
     let mut buffer = vec![0; BUFFER_SIZE];
-    let mut accumulated_data = String::new();
     let mut last_message_time = Instant::now();
 
     send_handshake(stream)?;
     let mut handsnake = String::new();
     while handsnake != HANDSHAKE_MESSAGE {
-        handsnake = read_and_handle_data(stream, &mut buffer, &mut accumulated_data, &peer_address, &connection_pool, &mut last_message_time)?;
+        handsnake = read_and_handle_data(stream, &mut buffer, &peer_address, &connection_pool, &mut last_message_time)?;
     }
 
     info!("Authorized client connected from {}", peer_address);
@@ -127,7 +126,6 @@ fn send_handshake(stream: &mut TcpStream) -> Result<(), std::io::Error> {
 fn read_and_handle_data(
     stream: &mut TcpStream,
     buffer: &mut Vec<u8>,
-    accumulated_data: &mut String,
     peer_address: &String,
     connection_pool: &Arc<Mutex<ConnectionPool>>,
     last_message_time: &mut Instant,
@@ -142,13 +140,13 @@ fn read_and_handle_data(
             }
 
             *last_message_time = Instant::now();
-            accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
+            let mut accumulated_data:String = String::from_utf8_lossy(&buffer[..n]).parse().unwrap();
 
-            while let Some((message, remaining_data)) = extract_message(accumulated_data) {
+            while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
                 info!("New message received: {}", message);
                 // Добавляем перенос строки, чтобы сравнить
                 handsnake = message+"\n";
-                *accumulated_data = remaining_data;
+                accumulated_data = remaining_data;
             }
             debug!("{:?}=={:?}" ,handsnake.clone().into_bytes(), String::from(HANDSHAKE_MESSAGE).clone().into_bytes());
             Ok(handsnake)
@@ -191,11 +189,11 @@ fn monitor_inactivity(
                 }
 
                 *last_message_time = Instant::now();
-                let accumulated_data = String::from_utf8_lossy(&buffer[..n]);
-
-                for message in accumulated_data.split('\n').filter_map(|line| line.trim().is_empty().then(|| line.to_string())) {
+                let mut accumulated_data:String = String::from_utf8_lossy(&buffer[..n]).parse().unwrap();
+                while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
                     info!("New message received: {}", message);
                     p2p_protocol.lock().unwrap().handle_message(&message);
+                    accumulated_data = remaining_data;
                 }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {

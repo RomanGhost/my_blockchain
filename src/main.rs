@@ -19,7 +19,7 @@ mod message_thread;
 mod mining_thread;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_LOG", "info");
 
     // // Инициализируем логгер
     env_logger::init();
@@ -28,7 +28,8 @@ fn main() {
     info!("Program run");
 
     // Инициализация сервера
-    let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
+    // let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
+    let address = String::from("localhost:7878");
     let (server_clone, rx_server, server_thread_handle) = server_thread(address);
     let peer_protocol = server_clone.get_peer_protocol();
 
