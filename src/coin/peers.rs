@@ -61,7 +61,9 @@ impl P2PProtocol {
                     self.last_message_id = message_id;
                 }
 
+                //Отправка в канал сообщений
                 self.sender.send(message.clone()).unwrap();
+                // Рассылка сообщения
                 self.broadcast(message, true);
             }
             Err(e) => {
@@ -117,6 +119,7 @@ impl P2PProtocol {
         let peer_addresses = connection_pool.get_peer_addresses();
         let peers_list = peer_addresses.join(", ");
         let response = format!("Peers: {}", peers_list);
+
         stream.write_all(response.as_bytes()).unwrap();
     }
 

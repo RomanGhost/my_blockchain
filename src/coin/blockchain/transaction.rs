@@ -20,14 +20,10 @@ pub struct Transaction {
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64, tax: f64) -> Transaction {
+    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64) -> Transaction {
         let sender = RsaPublicKey::from_pkcs1_der(
             &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
         ).expect("Ошибка чтения ключа отправителя");
-
-        let receiver = RsaPublicKey::from_pkcs1_der(
-            &STANDARD_NO_PAD.decode(&receiver_base64).unwrap()
-        ).expect("Ошибка чтения ключа получателя");
 
         Transaction {
             sender,
@@ -39,33 +35,44 @@ impl Transaction {
 
     // Подпись транзакции с использованием приватного ключа
     pub fn sign(&mut self, private_key: RsaPrivateKey) {
-        let message = self.to_string();
-        let message_bytes = message.into_bytes();
+        let sender_der = self.sender.to_pkcs1_der().unwrap();
+        let sender_base64 = STANDARD_NO_PAD.encode(sender_der.as_bytes());
+        // Собираем только данные, которые участвуют в подписи
+        let data_to_sign = format!("{}:{}:{}", sender_base64, self.message, self.transfer);
+        let message_bytes = data_to_sign.into_bytes();
 
+        // Хешируем данные
         let mut hasher = Sha256::new();
         hasher.update(message_bytes);
         let hashed_message = hasher.finalize();
 
+        // Создаем подпись
         let padding = PaddingScheme::new_pkcs1v15_sign_raw();
         let signature_bytes = private_key.sign(padding, &hashed_message).expect("Не удалось подписать сообщение");
 
+        // Кодируем подпись в Base64
         self.signature = STANDARD_NO_PAD.encode(signature_bytes);
     }
 
     // Проверка подписи
     pub fn verify(&self) -> bool {
-        let message = self.to_json();
-        let message_bytes = message.into_bytes();
+        let sender_der = self.sender.to_pkcs1_der().unwrap();
+        let sender_base64 = STANDARD_NO_PAD.encode(sender_der.as_bytes());
+        // Собираем только данные, которые участвуют в подписи
+        let data_to_sign = format!("{}:{}:{}", sender_base64, self.message, self.transfer);
+        let message_bytes = data_to_sign.into_bytes();
 
+        // Хешируем данные
         let mut hasher = Sha256::new();
         hasher.update(message_bytes);
         let hashed_message = hasher.finalize();
 
+        // Декодируем подпись из Base64
         let signature_bytes = STANDARD_NO_PAD.decode(&self.signature).expect("Ошибка декодирования подписи из Base64");
 
-        let public_key = self.sender.clone();
+        // Проверяем подпись
         let padding = PaddingScheme::new_pkcs1v15_sign_raw();
-        public_key.verify(padding, &hashed_message, &signature_bytes).is_ok()
+        self.sender.verify(padding, &hashed_message, &signature_bytes).is_ok()
     }
 
     pub fn serialize(&self) -> SerializedTransaction {

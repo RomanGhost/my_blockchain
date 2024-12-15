@@ -49,6 +49,7 @@ impl ConnectionPool {
             // Рассчитываем конечный индекс для среза
             let end_index = (start_index + buffer_size).min(message.len());
             let message_chunk = &message[start_index..end_index];
+            println!("Само сообщение: {}", message_chunk);
 
             // Отправляем этот фрагмент всем пирами
             for (address, stream) in self.peers.iter_mut() {
