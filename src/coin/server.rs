@@ -5,13 +5,13 @@ use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use log::{error, info, warn};
-
+use log::{debug, error, info, warn};
+use serde::de::Unexpected::Str;
 use crate::coin::connection::ConnectionPool;
 use crate::coin::message::r#type::Message;
 use crate::coin::peers::P2PProtocol;
 
-const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!";
+const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!\r\n";
 const TIMEOUT: u64 = 300;
 const BUFFER_SIZE: usize = 4096;
 
@@ -103,9 +103,9 @@ fn handle_connection(
     let mut last_message_time = Instant::now();
 
     send_handshake(stream)?;
-
-    while accumulated_data.trim() != HANDSHAKE_MESSAGE {
-        read_and_handle_data(stream, &mut buffer, &mut accumulated_data, &peer_address, &connection_pool, &p2p_protocol, &mut last_message_time)?;
+    let mut handsnake = String::new();
+    while handsnake != HANDSHAKE_MESSAGE {
+        handsnake = read_and_handle_data(stream, &mut buffer, &mut accumulated_data, &peer_address, &connection_pool, &mut last_message_time)?;
     }
 
     info!("Authorized client connected from {}", peer_address);
@@ -130,9 +130,9 @@ fn read_and_handle_data(
     accumulated_data: &mut String,
     peer_address: &String,
     connection_pool: &Arc<Mutex<ConnectionPool>>,
-    p2p_protocol: &Arc<Mutex<P2PProtocol>>,
     last_message_time: &mut Instant,
-) -> Result<(), std::io::Error> {
+) -> Result<(String), std::io::Error> {
+    let mut handsnake:String = String::new();
     match stream.read(buffer) {
         Ok(n) => {
             if n == 0 {
@@ -144,15 +144,18 @@ fn read_and_handle_data(
             *last_message_time = Instant::now();
             accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
 
-            Ok(while let Some((message, remaining_data)) = extract_message(accumulated_data) {
+            while let Some((message, remaining_data)) = extract_message(accumulated_data) {
                 info!("New message received: {}", message);
-                p2p_protocol.lock().unwrap().handle_message(&message);
+                // Добавляем перенос строки, чтобы сравнить
+                handsnake = message+"\n";
                 *accumulated_data = remaining_data;
-            })
+            }
+            debug!("{:?}=={:?}" ,handsnake.clone().into_bytes(), String::from(HANDSHAKE_MESSAGE).clone().into_bytes());
+            Ok(handsnake)
         }
         Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
             // Timeout occurred, continue the loop to check inactivity
-            Ok(())
+            Ok(String::new())
         }
         Err(e) => {
             error!("Error reading from stream: {}", e);
