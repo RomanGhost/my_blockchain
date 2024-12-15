@@ -19,7 +19,7 @@ mod message_thread;
 mod mining_thread;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
+    std::env::set_var("RUST_LOG", "warn");
 
     // // Инициализируем логгер
     env_logger::init();

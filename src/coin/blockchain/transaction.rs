@@ -20,7 +20,7 @@ pub struct Transaction {
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender_base64: String, receiver_base64: String, message: String, transfer: f64) -> Transaction {
+    pub fn new(sender_base64: String, message: String, transfer: f64) -> Transaction {
         let sender = RsaPublicKey::from_pkcs1_der(
             &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
         ).expect("Ошибка чтения ключа отправителя");
@@ -60,6 +60,7 @@ impl Transaction {
         let sender_base64 = STANDARD_NO_PAD.encode(sender_der.as_bytes());
         // Собираем только данные, которые участвуют в подписи
         let data_to_sign = format!("{}:{}:{}", sender_base64, self.message, self.transfer);
+        // println!("Transaction data: {}", data_to_sign);
         let message_bytes = data_to_sign.into_bytes();
 
         // Хешируем данные
