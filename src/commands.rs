@@ -2,6 +2,7 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use log::warn;
 use crate::app_state::AppState;
 use crate::blockchain_functions::count_wallet_amount;
 use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
@@ -74,7 +75,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
                         signed_transaction = transaction.serialize();
                     }
                     Err(e) => {
-                        eprintln!("{}", e);
+                        warn!("{}", e);
                     }
                 }
                 println!("Подпись создана");

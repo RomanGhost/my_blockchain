@@ -102,12 +102,13 @@ impl TextMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageAnswerFirstInfo {
-    id: u64
+    id: u64,
+    time_stamp: DateTime<Utc>,
 }
 
 impl MessageAnswerFirstInfo {
     pub fn new() -> MessageAnswerFirstInfo {
-        MessageAnswerFirstInfo{ id: 0, }
+        MessageAnswerFirstInfo{ id: 0, time_stamp: Utc::now(),}
     }
 
     pub fn get_id(&self) -> u64 {
@@ -123,11 +124,12 @@ impl MessageAnswerFirstInfo {
 pub struct ChainMessage {
     id: u64,
     chain: Vec<Block>,
+    time_stamp: DateTime<Utc>,
 }
 
 impl ChainMessage {
     pub fn new(chain: Vec<Block>) -> ChainMessage {
-        ChainMessage { id: 0, chain }
+        ChainMessage { id: 0, chain, time_stamp: Utc::now(), }
     }
 
     pub fn get_id(&self) -> u64 {

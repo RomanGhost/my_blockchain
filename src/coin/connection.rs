@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::net::TcpStream;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+use log::{debug, info, warn};
 
 pub struct ConnectionPool {
     peers: HashMap<String, TcpStream>,
@@ -18,12 +19,12 @@ impl ConnectionPool {
 
     pub fn add_peer(&mut self, address: String, stream: TcpStream) {
         self.peers.insert(address.clone(), stream);
-        println!("Added peer: {}", address);
+        info!("Added peer: {}", address);
     }
 
     pub fn remove_peer(&mut self, address: &str) {
         self.peers.remove(address);
-        println!("Removed peer: {}", address);
+        info!("Removed peer: {}", address);
     }
 
     pub fn get_alive_peers(&self) -> Vec<&TcpStream> {
@@ -44,17 +45,17 @@ impl ConnectionPool {
 
         // Разбиваем сообщение на части в зависимости от размера буфера
         let mut start_index = 0;
-        println!("Начинаем отправку сообщений");
+        debug!("Начинаем отправку сообщений");
         while start_index < message.len() {
             // Рассчитываем конечный индекс для среза
             let end_index = (start_index + buffer_size).min(message.len());
             let message_chunk = &message[start_index..end_index];
-            println!("Само сообщение: {}", message_chunk);
+            debug!("Само сообщение: {}", message_chunk);
 
             // Отправляем этот фрагмент всем пирами
             for (address, stream) in self.peers.iter_mut() {
                 if let Err(e) = stream.write_all(message_chunk.as_bytes()) {
-                    eprintln!("Failed to send message to {}: {}", address, e);
+                    warn!("Failed to send message to {}: {}", address, e);
                     disconnected_peers.push(address.clone());
                 }
             }
@@ -62,7 +63,7 @@ impl ConnectionPool {
             // Увеличиваем начальный индекс для следующего фрагмента
             start_index += buffer_size;
         }
-        println!("Сообщение отправлено");
+        debug!("Сообщение отправлено");
 
         // Удаляем отключенные пиры
         for address in disconnected_peers {

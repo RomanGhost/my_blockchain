@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 pub struct LastNBlocksMessage {
     id: u64,
     n: usize, // Количество блоков, которые необходимо запросить
+    time_stamp: DateTime<Utc>,
 }
 impl LastNBlocksMessage {
     pub fn new(n: usize) -> LastNBlocksMessage {
-        LastNBlocksMessage { id: 0, n }
+        LastNBlocksMessage { id: 0, n, time_stamp: Utc::now() }
     }
 
     pub fn get_id(&self) -> u64 {
@@ -51,11 +52,12 @@ impl BlocksBeforeMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageFirstInfo {
-    id: u64
+    id: u64,
+    time_stamp: DateTime<Utc>,
 }
 impl MessageFirstInfo {
     pub fn new() -> MessageFirstInfo {
-        MessageFirstInfo { id: 0, }
+        MessageFirstInfo { id: 0, time_stamp: Utc::now()}
     }
 
     pub fn get_id(&self) -> u64 {

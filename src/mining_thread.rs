@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use log::info;
 use crate::app_state::AppState;
 use crate::coin::blockchain::transaction::SerializedTransaction;
 
@@ -33,7 +34,7 @@ pub fn mining_thread(app_state: Arc<AppState>) -> JoinHandle<()> {
                 if let Some(transaction) = lock_queue.pop() {
                     transactions.push(transaction);
                 } else {
-                    println!("Нет доступных транзакций для обработки.");
+                    info!("Нет доступных транзакций для обработки.");
                     break;
                 }
             }
@@ -53,7 +54,7 @@ pub fn mining_thread(app_state: Arc<AppState>) -> JoinHandle<()> {
                 if let Ok(last_block) = chain.get_last_block() {
                     app_state.p2p_protocol.lock().unwrap().response_block(last_block, false);
                     transactions.clear(); // Очищаем пул транзакций после успешного майнинга
-                    println!("Отправлен новый блок");
+                    info!("Отправлен новый блок");
                 }
             }
 
