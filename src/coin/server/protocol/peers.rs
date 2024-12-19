@@ -3,13 +3,13 @@ use std::sync::{Arc, Mutex};
 use std::io::Write;
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
-use log::{info, warn};
+use chrono::{DateTime, Utc};
+use log::{debug, info, warn};
 use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
-use crate::coin::connection::ConnectionPool;
-use crate::coin::message::r#type::Message;
-use crate::coin::message::{request, response};
-use crate::coin::message::request::LastNBlocksMessage;
+use crate::coin::server::connection::ConnectionPool;
+use crate::coin::server::protocol::message::r#type::Message;
+use crate::coin::server::protocol::message::{request, response};
 
 pub struct P2PProtocol {
     connection_pool: Arc<Mutex<ConnectionPool>>,
@@ -28,21 +28,23 @@ impl P2PProtocol {
 
     pub fn handle_message(&mut self, message_json: &str) {
         let message_json = message_json.trim_end_matches('\0');
+        debug!("P2P protocol: message json: {}", message_json);
         // dbg!(message_json);
         match Message::from_json(message_json) {
             Ok(message) => {
                 match message {
                     Message::RequestMessageInfo(_) => {
+                        info!("Type:RequestMessageInfo get");
                         self.response_first_message();
-                        let n = 100;
-                        let request_last_n_block = request::LastNBlocksMessage::new(n);
-                        let request_last_n_block_message = Message::RequestLastNBlocksMessage(request_last_n_block);
-                        self.sender.send(request_last_n_block_message).unwrap();
+                        let request_blocks_before = request::BlocksBeforeMessage::new(Utc::now());
+                        let request_blocks_before_message = Message::RequestBlocksBeforeMessage(request_blocks_before);
+                        self.sender.send(request_blocks_before_message).unwrap();
 
                         return;
                     }
 
                     Message::ResponseMessageInfo(msg) => {
+                        info!("Type:ResponseMessageInfo get");
                         let message_id = msg.get_id();
                         if self.last_message_id < message_id {
                             self.last_message_id = message_id;
@@ -56,12 +58,14 @@ impl P2PProtocol {
                 let message_id = message.get_id();
                 //Если текущее сообщение меньше чем сообщение чата
                 if message_id <= self.last_message_id{
-                    return
+                    return;
                 }else{
                     self.last_message_id = message_id;
                 }
 
+                //Отправка в канал сообщений
                 self.sender.send(message.clone()).unwrap();
+                // Рассылка сообщения
                 self.broadcast(message, true);
             }
             Err(e) => {
@@ -117,6 +121,7 @@ impl P2PProtocol {
         let peer_addresses = connection_pool.get_peer_addresses();
         let peers_list = peer_addresses.join(", ");
         let response = format!("Peers: {}", peers_list);
+
         stream.write_all(response.as_bytes()).unwrap();
     }
 
@@ -128,8 +133,15 @@ impl P2PProtocol {
     }
 
     pub fn request_chain(&mut self, chain_size: usize) {
-        let response_message = LastNBlocksMessage::new(chain_size);
+        let response_message = request::LastNBlocksMessage::new(chain_size);
         let response_message = Message::RequestLastNBlocksMessage(response_message);
+
+        self.broadcast(response_message, false);
+    }
+
+    pub fn request_after(&mut self, time_stamp: DateTime<Utc>){
+        let request_blocks_before = request::BlocksBeforeMessage::new(time_stamp);
+        let response_message = Message::RequestBlocksBeforeMessage(request_blocks_before);
 
         self.broadcast(response_message, false);
     }

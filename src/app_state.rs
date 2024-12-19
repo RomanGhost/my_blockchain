@@ -1,11 +1,11 @@
 use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex, Condvar};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use crate::coin::blockchain::blockchain::Blockchain;
 use crate::coin::blockchain::transaction::SerializedTransaction;
 use crate::coin::blockchain::wallet::Wallet;
-use crate::coin::peers::P2PProtocol;
-use crate::coin::server::Server;
+use crate::coin::server::protocol::peers::P2PProtocol;
+use crate::coin::server::server::Server;
 
 #[derive(Clone)]
 pub struct AppState {

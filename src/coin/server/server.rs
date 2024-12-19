@@ -1,18 +1,20 @@
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{mpsc, Arc, Mutex};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
+use serde::de::Unexpected::Str;
+use crate::coin::server::connection::ConnectionPool;
+use crate::coin::server::errors::ServerError;
+use crate::coin::server::protocol::message::r#type::Message;
+use crate::coin::server::protocol::peers::P2PProtocol;
 
-use crate::coin::connection::ConnectionPool;
-use crate::coin::message::r#type::Message;
-use crate::coin::peers::P2PProtocol;
-
-/// Ожидаемая последовательность для проверки допустимости клиента
-const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!";
+const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!\r\n";
+const TIMEOUT: u64 = 600;
+const BUFFER_SIZE: usize = 4096;
 
 #[derive(Clone)]
 pub struct Server {
@@ -22,15 +24,13 @@ pub struct Server {
 
 impl Server {
     pub fn new(tx: Sender<Message>) -> Self {
-        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new(1024)));
+        let connection_pool = Arc::new(Mutex::new(ConnectionPool::new(BUFFER_SIZE)));
         let p2p_protocol = Arc::new(Mutex::new(P2PProtocol::new(connection_pool.clone(), tx)));
-
 
         Server {
             connection_pool,
             p2p_protocol,
         }
-
     }
 
     pub fn run(&mut self, address: String) {
@@ -38,7 +38,7 @@ impl Server {
             Ok(listener) => {
                 info!("Successfully bound to address {}", address);
                 listener
-            },
+            }
             Err(e) => {
                 error!("Could not bind to address {}: {}", address, e);
                 return;
@@ -50,7 +50,6 @@ impl Server {
                 Ok(mut stream) => {
                     let connection_pool = self.connection_pool.clone();
                     let p2p_protocol = self.p2p_protocol.clone();
-
                     let peer_address = stream.peer_addr().unwrap().to_string();
 
                     thread::spawn(move || {
@@ -72,9 +71,7 @@ impl Server {
                 info!("Successfully connected to {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
                 let p2p_protocol = self.p2p_protocol.clone();
-
                 let peer_address = stream.peer_addr().unwrap().to_string();
-                connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
                 thread::spawn(move || {
                     if let Err(e) = handle_connection(peer_address, &mut stream, connection_pool, p2p_protocol, true) {
@@ -92,55 +89,122 @@ impl Server {
         self.p2p_protocol.clone()
     }
 }
+
 fn handle_connection(
     peer_address: String,
     stream: &mut TcpStream,
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
     is_connect: bool,
-) -> Result<(), std::io::Error> {
-    let mut buffer = vec![0; 1024];
-    let mut accumulated_data = String::new();
+) -> Result<(), ServerError> {
+    let mut last_message_time = Instant::now();
 
-    let mut last_message_time = Instant::now(); // Track the last message time
-
-    // Получаем первое сообщение и проверяем последовательность
-    stream.read_to_string(&mut accumulated_data)?;
-    if accumulated_data.trim() != HANDSHAKE_MESSAGE {
-        warn!("Unauthorized client attempted to connect from {}", peer_address);
-        stream.write_all(b"Unauthorized\n")?;
-        return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "Unauthorized client"));
+    send_handshake(stream)?;
+    match read_handshake(stream, &peer_address, &connection_pool, &mut last_message_time) {
+        Ok(_) => {
+            info!("Authorized client connected from {}", peer_address);
+            connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
+        }
+        Err(e) => {
+            info!("Error {}", e);
+            return Err(e)
+        }
     }
-
-    info!("Authorized client connected from {}", peer_address);
-    connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
 
     if is_connect {
         p2p_protocol.lock().unwrap().request_first_message();
     }
+    monitor_inactivity(peer_address, stream, connection_pool, p2p_protocol, &mut last_message_time);
 
-    loop {
-        // Check for inactivity before reading
-        if last_message_time.elapsed() >= Duration::from_secs(300) { // 5 minutes
+    Ok(())
+}
+
+fn send_handshake(stream: &mut TcpStream) -> Result<(), std::io::Error> {
+    stream.write_all(HANDSHAKE_MESSAGE.as_bytes())?;
+    info!("Отправляем рукопожатие: {}", HANDSHAKE_MESSAGE);
+    Ok(())
+}
+
+fn read_handshake(
+    stream: &mut TcpStream,
+    peer_address: &String,
+    connection_pool: &Arc<Mutex<ConnectionPool>>,
+    last_message_time: &mut Instant,
+) -> Result<(), ServerError> {
+    info!("Wait handshake");
+    let mut handsnake:String = String::new();
+
+    while handsnake != HANDSHAKE_MESSAGE {
+        if last_message_time.elapsed() >= Duration::from_secs(TIMEOUT) {
             info!("Client {} inactive for 5 minutes, disconnecting", peer_address);
             connection_pool.lock().unwrap().remove_peer(&peer_address);
-            break;
+            return Err(ServerError::Timeout(peer_address.clone()));
         }
 
-        // Set a timeout for reading to allow periodic inactivity checks
-        stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
 
+        let mut buffer = vec![0; BUFFER_SIZE];
         match stream.read(&mut buffer) {
             Ok(n) => {
                 if n == 0 {
                     info!("Connection closed by peer: {}", peer_address);
                     connection_pool.lock().unwrap().remove_peer(&peer_address);
-                    break;
+                    return Err(ServerError::Timeout(peer_address.clone()));
                 }
 
-                // Update last message time on receiving data
-                last_message_time = Instant::now();
+                *last_message_time = Instant::now();
+                handsnake.push_str(&String::from_utf8_lossy(&buffer[..n]));
+                debug!("Accum data: {}", handsnake);
+                while let Some((message, _)) = extract_message(&handsnake) {
+                    info!("New message received: {}", message);
+                    if message+"\n" == HANDSHAKE_MESSAGE{
+                        return Ok(());
+                    }
+                }
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                // Timeout occurred, continue the loop to check inactivity
+                continue;
+            }
+            Err(e) => {
+                error!("Error reading from stream: {}", e);
+                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                return Err(ServerError::Io(e));
+            }
+        }
 
+    }
+    info!("Handshake is ok");
+    Ok(())
+}
+
+fn monitor_inactivity(
+    peer_address: String,
+    stream: &mut TcpStream,
+    connection_pool: Arc<Mutex<ConnectionPool>>,
+    p2p_protocol: Arc<Mutex<P2PProtocol>>,
+    last_message_time: &mut Instant,
+) -> Result<(), ServerError> {
+    let mut accumulated_data:String=String::new();
+    loop {
+        if last_message_time.elapsed() >= Duration::from_secs(TIMEOUT) {
+            info!("Client {} inactive for 5 minutes, disconnecting", peer_address);
+            connection_pool.lock().unwrap().remove_peer(&peer_address);
+            return Err(ServerError::Timeout(peer_address.clone()));
+        }
+
+        stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+
+        let mut buffer = vec![0; BUFFER_SIZE];
+        match stream.read(&mut buffer) {
+            Ok(n) => {
+                if n == 0 {
+                    info!("Connection closed by peer: {}", peer_address);
+                    connection_pool.lock().unwrap().remove_peer(&peer_address);
+                    return Err(ServerError::Timeout(peer_address.clone()));
+                }
+
+                *last_message_time = Instant::now();
                 accumulated_data.push_str(&String::from_utf8_lossy(&buffer[..n]));
                 while let Some((message, remaining_data)) = extract_message(&accumulated_data) {
                     info!("New message received: {}", message);
@@ -153,19 +217,17 @@ fn handle_connection(
                 continue;
             }
             Err(e) => {
-                // Handle other read errors
                 error!("Error reading from stream: {}", e);
                 connection_pool.lock().unwrap().remove_peer(&peer_address);
-                break;
+                return Err(ServerError::Io(e));
             }
         }
     }
-    Ok(())
 }
 
 /// Извлекает одно сообщение из буфера данных, разделенных `\n`.
 fn extract_message(data: &str) -> Option<(String, String)> {
-    if let Some(index) = data.find('\n') {
+    if let Some(index) = data.find("\n") {
         let message = data[..index].to_string();
         let remaining = data[(index + 1)..].to_string();
         Some((message, remaining))

@@ -3,11 +3,11 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
-
+use log::{info, warn};
 use crate::app_state::AppState;
 use crate::coin::blockchain::blockchain::validate_chain;
 use crate::coin::blockchain::transaction::Transaction;
-use crate::coin::message::r#type::Message;
+use crate::coin::server::protocol::message::r#type::Message;
 
 pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) -> JoinHandle<()> {
     thread::spawn(move || {
@@ -18,9 +18,18 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
 
             match received {
                 Message::RequestLastNBlocksMessage(message) => {
+                    info!("Get block chain");
                     let n = message.get_n();
                     app_state.stop_mining();
                     let blocks = app_state.blockchain.lock().unwrap().get_last_n_blocks(n);
+                    app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
+                    app_state.start_mining();
+                }
+
+                Message::RequestBlocksBeforeMessage(message) => {
+                    info!("Get messages before: {}", message.get_time());
+                    app_state.stop_mining();
+                    let blocks = app_state.blockchain.lock().unwrap().get_blocks_before(message.get_time());
                     app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
                     app_state.start_mining();
                 }
@@ -40,9 +49,9 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     let local_chain_last_id = chain.get_last_block().map_or(0, |block| block.get_id());
 
                     if new_chain_last_id > local_chain_last_id {
-                        println!("Новая цепочка длиннее локальной.");
+                        warn!("Новая цепочка длиннее локальной.");
                     } else {
-                        println!("Локальная цепочка длиннее или равна новой.");
+                        info!("Локальная цепочка длиннее или равна новой.");
                     }
 
                     // Проверка на совпадение длин и выбор лучшей цепочки
@@ -50,13 +59,13 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                         let n = new_chain.len();
                         let local_chain = chain.get_last_n_blocks(n);
                         if validate_chain(&local_chain, &new_chain) {
-                            println!("Цепочка валидна, обновление...");
+                            info!("Цепочка валидна, обновление...");
                             chain.chain = new_chain;
                         } else {
-                            println!("Полученная цепочка невалидна");
+                            warn!("Полученная цепочка невалидна");
                         }
                     } else {
-                        println!("Полученная цепочка короче или равна текущей, обновление не требуется");
+                        info!("Полученная цепочка короче или равна текущей, обновление не требуется");
                     }
 
                     // Перезапуск майнинга после синхронизации
@@ -105,16 +114,16 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                     if is_valid {
                         let serialize = transaction.serialize();
                         app_state.queue.lock().unwrap().push(serialize);
-                        println!("Транзакция добавлена в очередь");
+                        info!("Транзакция добавлена в очередь");
                     } else {
-                        println!("Транзакция не валидна");
+                        warn!("Транзакция не валидна");
                     }
                 }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
                 }
                 _ => {
-                    eprintln!("Неизвестный тип сообщения");
+                    warn!("Неизвестный тип сообщения");
                 }
             }
         }
