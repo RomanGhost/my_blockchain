@@ -3,23 +3,23 @@ use log::{info, warn, error};
 
 use crate::app_state::AppState;
 use crate::blockchain_functions::initialize_blockchain;
-use crate::coin::blockchain::wallet::Wallet;
 use crate::commands::{get_input_text, handle_user_commands};
 use crate::message_thread::message_thread;
 use crate::mining_thread::mining_thread;
 use crate::server_thread::server_thread;
 use env_logger;
+use crate::coin::blockchain::wallet::Wallet;
 
-mod coin;
 mod server_thread;
 mod blockchain_functions;
 mod commands;
 mod app_state;
 mod message_thread;
 mod mining_thread;
+mod coin;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "warn");
+    std::env::set_var("RUST_LOG", "info");
 
     // // Инициализируем логгер
     env_logger::init();

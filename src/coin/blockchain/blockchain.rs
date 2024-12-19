@@ -101,6 +101,14 @@ impl Blockchain {
             .collect()
     }
 
+    pub fn get_blocks_before(&self, datetime: DateTime<Utc>) -> Vec<Block> {
+        self.chain
+            .iter()
+            .filter(|block| datetime > block.get_datetime())
+            .cloned()
+            .collect()
+    }
+
     pub fn get_last_n_blocks(&self, n: usize) -> Vec<Block> {
         self.chain
             .iter()

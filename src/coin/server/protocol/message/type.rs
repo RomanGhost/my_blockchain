@@ -1,21 +1,20 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
-use crate::coin::message::request::{BlocksBeforeMessage, LastNBlocksMessage, MessageFirstInfo};
-use crate::coin::message::response::{BlockMessage, ChainMessage, MessageAnswerFirstInfo, TextMessage, TransactionMessage};
+use crate::coin::server::protocol::message::{request, response};
 
 // Обобщённый тип сообщения, содержащий разные варианты
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "content")] // Добавляем тег для типа сообщения
 pub enum Message {
-    ResponseBlockMessage(BlockMessage),
-    ResponseTransactionMessage(TransactionMessage),
-    ResponseTextMessage(TextMessage),
-    ResponseMessageInfo(MessageAnswerFirstInfo),
-    ResponseChainMessage(ChainMessage),
+    ResponseBlockMessage(response::BlockMessage),
+    ResponseTransactionMessage(response::TransactionMessage),
+    ResponseTextMessage(response::TextMessage),
+    ResponseMessageInfo(response::MessageAnswerFirstInfo),
+    ResponseChainMessage(response::ChainMessage),
 
-    RequestLastNBlocksMessage(LastNBlocksMessage),
-    RequestBlocksBeforeMessage(BlocksBeforeMessage),
-    RequestMessageInfo(MessageFirstInfo),
+    RequestLastNBlocksMessage(request::LastNBlocksMessage),
+    RequestBlocksBeforeMessage(request::BlocksBeforeMessage),
+    RequestMessageInfo(request::MessageFirstInfo),
 
 }
 

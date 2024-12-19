@@ -2,8 +2,8 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
-use crate::coin::message::r#type::Message;
-use crate::coin::server::Server;
+use crate::coin::server::protocol::message::r#type::Message;
+use crate::coin::server::server::Server;
 
 pub fn server_thread(address: String) -> (Server, Receiver<Message>, JoinHandle<()>) {
     let (tx, rx) = mpsc::channel();

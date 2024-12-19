@@ -7,7 +7,7 @@ use log::{info, warn};
 use crate::app_state::AppState;
 use crate::coin::blockchain::blockchain::validate_chain;
 use crate::coin::blockchain::transaction::Transaction;
-use crate::coin::message::r#type::Message;
+use crate::coin::server::protocol::message::r#type::Message;
 
 pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) -> JoinHandle<()> {
     thread::spawn(move || {
@@ -18,9 +18,18 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
 
             match received {
                 Message::RequestLastNBlocksMessage(message) => {
+                    info!("Get block chain");
                     let n = message.get_n();
                     app_state.stop_mining();
                     let blocks = app_state.blockchain.lock().unwrap().get_last_n_blocks(n);
+                    app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
+                    app_state.start_mining();
+                }
+
+                Message::RequestBlocksBeforeMessage(message) => {
+                    info!("Get messages before: {}", message.get_time());
+                    app_state.stop_mining();
+                    let blocks = app_state.blockchain.lock().unwrap().get_blocks_before(message.get_time());
                     app_state.p2p_protocol.lock().unwrap().response_chain(blocks);
                     app_state.start_mining();
                 }
