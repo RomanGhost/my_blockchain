@@ -20,6 +20,7 @@ const BUFFER_SIZE: usize = 4096;
 pub struct Server {
     connection_pool: Arc<Mutex<ConnectionPool>>,
     p2p_protocol: Arc<Mutex<P2PProtocol>>,
+    server_address: String,
 }
 
 impl Server {
@@ -30,6 +31,7 @@ impl Server {
         Server {
             connection_pool,
             p2p_protocol,
+            server_address,
         }
     }
 
@@ -66,8 +68,11 @@ impl Server {
     }
 
     pub fn connect(&self, ip: &str, port: &str) {
-
-        match TcpStream::connect(format!("{}:{}", ip, port)) {
+        let connected_address = format!("{}:{}", ip, port);
+        if self.server_address == connected_address || self.connection_pool.lock().unwrap().connection_exist(connected_address.clone()) {
+            return;
+        }
+        match TcpStream::connect(connected_address) {
             Ok(mut stream) => {
                 info!("Successfully connected to {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
@@ -104,9 +109,7 @@ fn handle_connection(
     match read_handshake(stream, peer_address.clone(), &connection_pool, &mut last_message_time) {
         Ok(_) => {
             info!("Authorized client connected from {}", peer_address);
-            if !connection_pool.lock().unwrap().connection_exist(peer_address.clone()) {
-                connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
-            }
+            connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
         }
         Err(e) => {
             info!("Error {}", e);
