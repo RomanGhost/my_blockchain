@@ -119,6 +119,17 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                         warn!("Транзакция не валидна");
                     }
                 }
+                Message::ResponsePeerMessage(message) => {
+                    for addr in message.get_peers() {
+                        let mut addr_iter = addr.split(":");
+
+                        if let (Some(host), Some(port)) = (addr_iter.next(), addr_iter.next()) {
+                            app_state.server.connect(host, port);
+                        } else {
+                            warn!("Invalid address format");
+                        }
+                    }
+                }
                 Message::ResponseTextMessage(message) => {
                     println!("Новое сообщение > {}", message.get_text());
                 }

@@ -39,8 +39,7 @@ impl P2PProtocol {
                         let request_blocks_before = request::BlocksBeforeMessage::new(Utc::now());
                         let request_blocks_before_message = Message::RequestBlocksBeforeMessage(request_blocks_before);
                         self.sender.send(request_blocks_before_message).unwrap();
-
-                        return;
+                        return
                     }
 
                     Message::ResponseMessageInfo(msg) => {
@@ -50,7 +49,7 @@ impl P2PProtocol {
                             self.last_message_id = message_id;
                         }
                         info!("Получено сообщение об id сообщения: {}/{}", msg.get_id(), self.last_message_id);
-                        return;
+                        return
                     }
                     (_)=>{}
                 }
@@ -58,15 +57,16 @@ impl P2PProtocol {
                 let message_id = message.get_id();
                 //Если текущее сообщение меньше чем сообщение чата
                 if message_id <= self.last_message_id{
+                    debug!("Message less main ID: {}<{}", message_id, self.last_message_id);
                     return;
                 }else{
                     self.last_message_id = message_id;
                 }
 
+                debug!("Message send to channel: {}", message_json);
+                self.broadcast(message.clone(), true);
                 //Отправка в канал сообщений
                 self.sender.send(message.clone()).unwrap();
-                // Рассылка сообщения
-                self.broadcast(message, true);
             }
             Err(e) => {
                 warn!("Failed to deserialize response_message: {}, {}", e, message_json);
@@ -85,7 +85,7 @@ impl P2PProtocol {
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
         info!("Сообщение сформировано");
-        //отправка сообщения в поток о том что нужно очистить свой блок
+
         self.broadcast(response_message, false);
     }
 
@@ -116,13 +116,17 @@ impl P2PProtocol {
         self.broadcast(response_message, false);
     }
 
-    fn response_peers(&self, stream: &mut TcpStream) {
-        let connection_pool = self.connection_pool.lock().unwrap();
-        let peer_addresses = connection_pool.get_peer_addresses();
-        let peers_list = peer_addresses.join(", ");
-        let response = format!("Peers: {}", peers_list);
+    pub fn response_peers(&mut self) {
+        let peer_addresses;
+        {
+            let connection_pool = self.connection_pool.lock().unwrap();
+            peer_addresses = connection_pool.get_peer_addresses();
+        }
+        let response_message = response::PeerMessage::new(peer_addresses);
+        let response_message = Message::ResponsePeerMessage(response_message);
 
-        stream.write_all(response.as_bytes()).unwrap();
+
+        self.broadcast(response_message, false);
     }
 
     pub fn response_chain(&mut self, chain: Vec<Block>) {

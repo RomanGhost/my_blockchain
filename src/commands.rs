@@ -34,11 +34,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["connect", address] => {
                 if let Some((ip, port_str)) = address.split_once(':') {
-                    if let Ok(port) = port_str.parse::<u16>() {
-                        app_state.server.connect(ip, port);
-                    } else {
-                        println!("Некорректный порт: {}", port_str);
-                    }
+                    app_state.server.connect(ip, port_str);
                 } else {
                     println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
                 }
