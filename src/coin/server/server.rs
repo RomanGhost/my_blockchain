@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 use log::{debug, error, info, warn};
 use serde::de::Unexpected::Str;
 use crate::coin::server::connection::ConnectionPool;
-use crate::coin::server::errors::ServerError;
 use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::peers::P2PProtocol;
+use crate::coin::server::errors::ServerError;
 
 const HANDSHAKE_MESSAGE: &str = "NEW_CONNECT!\r\n";
 const TIMEOUT: u64 = 600;
@@ -65,8 +65,9 @@ impl Server {
         }
     }
 
-    pub fn connect(&self, ip: &str, port: u16) {
-        match TcpStream::connect((ip, port)) {
+    pub fn connect(&self, ip: &str, port: &str) {
+
+        match TcpStream::connect(format!("{}:{}", ip, port)) {
             Ok(mut stream) => {
                 info!("Successfully connected to {}:{}", ip, port);
                 let connection_pool = self.connection_pool.clone();
@@ -100,10 +101,12 @@ fn handle_connection(
     let mut last_message_time = Instant::now();
 
     send_handshake(stream)?;
-    match read_handshake(stream, &peer_address, &connection_pool, &mut last_message_time) {
+    match read_handshake(stream, peer_address.clone(), &connection_pool, &mut last_message_time) {
         Ok(_) => {
             info!("Authorized client connected from {}", peer_address);
-            connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
+            if !connection_pool.lock().unwrap().connection_exist(peer_address.clone()) {
+                connection_pool.lock().unwrap().add_peer(peer_address.clone(), stream.try_clone().unwrap());
+            }
         }
         Err(e) => {
             info!("Error {}", e);
@@ -111,10 +114,11 @@ fn handle_connection(
         }
     }
 
+    p2p_protocol.lock().unwrap().response_peers();
     if is_connect {
         p2p_protocol.lock().unwrap().request_first_message();
     }
-    monitor_inactivity(peer_address, stream, connection_pool, p2p_protocol, &mut last_message_time);
+    let _ = monitor_inactivity(peer_address.clone(), stream, connection_pool, p2p_protocol, &mut last_message_time);
 
     Ok(())
 }
@@ -127,7 +131,7 @@ fn send_handshake(stream: &mut TcpStream) -> Result<(), std::io::Error> {
 
 fn read_handshake(
     stream: &mut TcpStream,
-    peer_address: &String,
+    peer_address: String,
     connection_pool: &Arc<Mutex<ConnectionPool>>,
     last_message_time: &mut Instant,
 ) -> Result<(), ServerError> {
@@ -137,7 +141,7 @@ fn read_handshake(
     while handsnake != HANDSHAKE_MESSAGE {
         if last_message_time.elapsed() >= Duration::from_secs(TIMEOUT) {
             info!("Client {} inactive for 5 minutes, disconnecting", peer_address);
-            connection_pool.lock().unwrap().remove_peer(&peer_address);
+            connection_pool.lock().unwrap().remove_peer(peer_address.clone());
             return Err(ServerError::Timeout(peer_address.clone()));
         }
 
@@ -148,7 +152,7 @@ fn read_handshake(
             Ok(n) => {
                 if n == 0 {
                     info!("Connection closed by peer: {}", peer_address);
-                    connection_pool.lock().unwrap().remove_peer(&peer_address);
+                    connection_pool.lock().unwrap().remove_peer(peer_address.to_string());
                     return Err(ServerError::Timeout(peer_address.clone()));
                 }
 
@@ -168,7 +172,7 @@ fn read_handshake(
             }
             Err(e) => {
                 error!("Error reading from stream: {}", e);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                connection_pool.lock().unwrap().remove_peer(peer_address);
                 return Err(ServerError::Io(e));
             }
         }
@@ -189,7 +193,7 @@ fn monitor_inactivity(
     loop {
         if last_message_time.elapsed() >= Duration::from_secs(TIMEOUT) {
             info!("Client {} inactive for 5 minutes, disconnecting", peer_address);
-            connection_pool.lock().unwrap().remove_peer(&peer_address);
+            connection_pool.lock().unwrap().remove_peer(peer_address.clone());
             return Err(ServerError::Timeout(peer_address.clone()));
         }
 
@@ -200,7 +204,7 @@ fn monitor_inactivity(
             Ok(n) => {
                 if n == 0 {
                     info!("Connection closed by peer: {}", peer_address);
-                    connection_pool.lock().unwrap().remove_peer(&peer_address);
+                    connection_pool.lock().unwrap().remove_peer(peer_address.clone());
                     return Err(ServerError::Timeout(peer_address.clone()));
                 }
 
@@ -218,7 +222,7 @@ fn monitor_inactivity(
             }
             Err(e) => {
                 error!("Error reading from stream: {}", e);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                connection_pool.lock().unwrap().remove_peer(peer_address);
                 return Err(ServerError::Io(e));
             }
         }

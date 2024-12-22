@@ -1,2 +1,2 @@
-pub mod peers;
 pub mod message;
+pub mod peers;

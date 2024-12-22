@@ -2,6 +2,7 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use log::warn;
 use crate::app_state::AppState;
 use crate::blockchain_functions::count_wallet_amount;
 use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
@@ -33,11 +34,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["connect", address] => {
                 if let Some((ip, port_str)) = address.split_once(':') {
-                    if let Ok(port) = port_str.parse::<u16>() {
-                        app_state.server.connect(ip, port);
-                    } else {
-                        println!("Некорректный порт: {}", port_str);
-                    }
+                    app_state.server.connect(ip, port_str);
                 } else {
                     println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
                 }
@@ -63,11 +60,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
                 let receiver_key = get_input_text("Укажи получателя");
 
                 let mut response_transaction =
-                    SerializedTransaction::new(
-                        sender_key.clone(),
-                        receiver_key.clone(),
-                        message, 12.0, 1.0,
-                    );
+                    SerializedTransaction::new(sender_key.clone(), message, 12.0);
 
                 let mut signed_transaction = response_transaction.clone();
                 let transaction = Transaction::deserialize(response_transaction);
@@ -78,7 +71,7 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
                         signed_transaction = transaction.serialize();
                     }
                     Err(e) => {
-                        eprintln!("{}", e);
+                        warn!("{}", e);
                     }
                 }
                 println!("Подпись создана");

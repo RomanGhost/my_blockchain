@@ -102,12 +102,13 @@ impl TextMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageAnswerFirstInfo {
-    id: u64
+    id: u64,
+    time_stamp: DateTime<Utc>,
 }
 
 impl MessageAnswerFirstInfo {
     pub fn new() -> MessageAnswerFirstInfo {
-        MessageAnswerFirstInfo{ id: 0, }
+        MessageAnswerFirstInfo{ id: 0, time_stamp: Utc::now(),}
     }
 
     pub fn get_id(&self) -> u64 {
@@ -123,11 +124,12 @@ impl MessageAnswerFirstInfo {
 pub struct ChainMessage {
     id: u64,
     chain: Vec<Block>,
+    time_stamp: DateTime<Utc>,
 }
 
 impl ChainMessage {
     pub fn new(chain: Vec<Block>) -> ChainMessage {
-        ChainMessage { id: 0, chain }
+        ChainMessage { id: 0, chain, time_stamp: Utc::now(), }
     }
 
     pub fn get_id(&self) -> u64 {
@@ -140,5 +142,31 @@ impl ChainMessage {
 
     pub fn get_chain(self) -> Vec<Block> {
         self.chain
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PeerMessage {
+    id: u64,
+    peer_address: Vec<String>,
+    time_stamp: DateTime<Utc>,
+}
+
+/// Format ip:port
+impl PeerMessage {
+    pub fn new(peer_address: Vec<String>) -> PeerMessage {
+        PeerMessage { id: 0, peer_address, time_stamp: Utc::now(), }
+    }
+
+    pub fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn set_id(&mut self, id: u64) {
+        self.id = id;
+    }
+
+    pub fn get_peers(self) -> Vec<String> {
+        self.peer_address
     }
 }

@@ -11,6 +11,7 @@ pub enum Message {
     ResponseTextMessage(response::TextMessage),
     ResponseMessageInfo(response::MessageAnswerFirstInfo),
     ResponseChainMessage(response::ChainMessage),
+    ResponsePeerMessage(response::PeerMessage),
 
     RequestLastNBlocksMessage(request::LastNBlocksMessage),
     RequestBlocksBeforeMessage(request::BlocksBeforeMessage),
@@ -35,6 +36,7 @@ impl Message {
             Message::ResponseTextMessage(msg) => msg.get_id(),
             Message::ResponseMessageInfo(msg) => msg.get_id(),
             Message::ResponseChainMessage(msg) => msg.get_id(),
+            Message::ResponsePeerMessage(msg) => msg.get_id(),
 
             Message::RequestLastNBlocksMessage(msg) => msg.get_id(),
             Message::RequestBlocksBeforeMessage(msg) => msg.get_id(),
@@ -49,6 +51,7 @@ impl Message {
             Message::ResponseTextMessage(msg) => msg.set_id(id),
             Message::ResponseMessageInfo(msg) => msg.set_id(id),
             Message::ResponseChainMessage(msg) => msg.set_id(id),
+            Message::ResponsePeerMessage(msg) => msg.set_id(id),
 
             Message::RequestLastNBlocksMessage(msg) => msg.set_id(id),
             Message::RequestBlocksBeforeMessage(msg) => msg.set_id(id),
