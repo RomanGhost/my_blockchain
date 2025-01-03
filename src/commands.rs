@@ -54,29 +54,29 @@ pub fn handle_user_commands(app_state: Arc<AppState>) {
                     println!("{:?}", block);
                 }
             }
-            ["transaction", message @ ..] if !message.is_empty() => {
-                let message = message.join(" ");
-                let sender_key = app_state.wallet.get_public_key_string();
-                let receiver_key = get_input_text("Укажи получателя");
-
-                let mut response_transaction =
-                    SerializedTransaction::new(sender_key.clone(), message, 12.0);
-
-                let mut signed_transaction = response_transaction.clone();
-                let transaction = Transaction::deserialize(response_transaction);
-
-                match transaction {
-                    Ok(mut transaction) => {
-                        transaction.sign(app_state.wallet.get_private_key());
-                        signed_transaction = transaction.serialize();
-                    }
-                    Err(e) => {
-                        warn!("{}", e);
-                    }
-                }
-                println!("Подпись создана");
-                app_state.p2p_protocol.lock().unwrap().response_transaction(signed_transaction);
-            }
+            // ["transaction", message @ ..] if !message.is_empty() => {
+            //     let message = message.join(" ");
+            //     let sender_key = app_state.wallet.get_public_key_string();
+            //     let receiver_key = get_input_text("Укажи получателя");
+            //
+            //     let mut response_transaction =
+            //         SerializedTransaction::new(sender_key.clone(), message, 12.0);
+            //
+            //     let mut signed_transaction = response_transaction.clone();
+            //     let transaction = Transaction::deserialize(response_transaction);
+            //
+            //     match transaction {
+            //         Ok(mut transaction) => {
+            //             transaction.sign(app_state.wallet.get_private_key());
+            //             signed_transaction = transaction.serialize();
+            //         }
+            //         Err(e) => {
+            //             warn!("{}", e);
+            //         }
+            //     }
+            //     println!("Подпись создана");
+            //     app_state.p2p_protocol.lock().unwrap().response_transaction(signed_transaction);
+            // }
             ["wallet"] => {
                 let my_key = app_state.wallet.get_public_key_string();
                 let blockchain = app_state.blockchain.lock().unwrap();

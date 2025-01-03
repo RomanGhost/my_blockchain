@@ -13,6 +13,8 @@ use rsa::signature::digest::Digest;
 #[derive(Debug, Clone)]
 pub struct Transaction {
     sender: RsaPublicKey,
+    buyer: RsaPublicKey,
+    seller: RsaPublicKey,
     message: String,
     transfer: f64,
     signature: String,
@@ -20,13 +22,23 @@ pub struct Transaction {
 
 impl Transaction {
     // Создание новой транзакции с конвертацией ключей в строковый формат
-    pub fn new(sender_base64: String, message: String, transfer: f64) -> Transaction {
+    pub fn new(sender_base64: String, seller_base64: String, buyer_base64: String, message: String, transfer: f64) -> Transaction {
         let sender = RsaPublicKey::from_pkcs1_der(
             &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
         ).expect("Ошибка чтения ключа отправителя");
 
+        let buyer = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&buyer_base64).unwrap()
+        ).expect("Ошибка чтения ключа покупателя");
+
+        let seller = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&seller_base64).unwrap()
+        ).expect("Ошибка чтения ключа продавца");
+
         Transaction {
             sender,
+            buyer,
+            seller,
             message,
             transfer,
             signature: "".to_string(),
@@ -80,8 +92,16 @@ impl Transaction {
         let sender_der = self.sender.to_pkcs1_der().unwrap();
         let sender_base64 = STANDARD_NO_PAD.encode(sender_der.as_bytes());
 
+        let buyer_der = self.buyer.to_pkcs1_der().unwrap();
+        let buyer_base64 = STANDARD_NO_PAD.encode(buyer_der.as_bytes());
+
+        let seller_der = self.buyer.to_pkcs1_der().unwrap();
+        let seller_base64 = STANDARD_NO_PAD.encode(seller_der.as_bytes());
+
         SerializedTransaction {
             sender: sender_base64,
+            seller: seller_base64,
+            buyer:buyer_base64,
             message: self.message.clone(),
             transfer: self.transfer,
             signature: self.signature.clone(),
@@ -94,8 +114,20 @@ impl Transaction {
             &STANDARD_NO_PAD.decode(&sender_base64).unwrap()
         ).expect("Ошибка чтения ключа отправителя");
 
+        let buyer_base64 = serialized_transaction.buyer;
+        let buyer = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&buyer_base64).unwrap()
+        ).expect("Ошибка чтения ключа отправителя");
+
+        let seller_base64 = serialized_transaction.seller;
+        let seller = RsaPublicKey::from_pkcs1_der(
+            &STANDARD_NO_PAD.decode(&seller_base64).unwrap()
+        ).expect("Ошибка чтения ключа отправителя");
+
         Ok(Transaction {
             sender,
+            buyer,
+            seller,
             message: serialized_transaction.message,
             transfer: serialized_transaction.transfer,
             signature: serialized_transaction.signature,
@@ -150,17 +182,23 @@ impl fmt::Display for Transaction{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SerializedTransaction {
     pub sender: String,
+    pub buyer: String,
+    pub seller: String,
     pub message: String,
     pub transfer: f64,
     pub signature: String,
 }
 
 impl SerializedTransaction {
-    pub fn new(sender_base64: String, message: String, transfer: f64) -> SerializedTransaction {
+    pub fn new(sender_base64: String, seller_base64: String, buyer_base64: String, message: String, transfer: f64) -> SerializedTransaction {
         let sender_base64 = sender_base64.trim().to_string();
+        let seller_base64 = seller_base64.trim().to_string();
+        let buyer_base64 = buyer_base64.trim().to_string();
 
         SerializedTransaction {
             sender: sender_base64,
+            buyer: buyer_base64,
+            seller: seller_base64,
             message,
             transfer,
             signature: "".to_string(),
