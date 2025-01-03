@@ -31,7 +31,6 @@ impl Server {
         Server {
             connection_pool,
             p2p_protocol,
-            server_address: String::new()
         }
     }
 
