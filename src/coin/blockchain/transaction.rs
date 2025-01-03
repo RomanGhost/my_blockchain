@@ -117,12 +117,12 @@ impl Transaction {
         let buyer_base64 = serialized_transaction.buyer;
         let buyer = RsaPublicKey::from_pkcs1_der(
             &STANDARD_NO_PAD.decode(&buyer_base64).unwrap()
-        ).expect("Ошибка чтения ключа отправителя");
+        ).expect("Ошибка чтения ключа покупателя");
 
         let seller_base64 = serialized_transaction.seller;
         let seller = RsaPublicKey::from_pkcs1_der(
             &STANDARD_NO_PAD.decode(&seller_base64).unwrap()
-        ).expect("Ошибка чтения ключа отправителя");
+        ).expect("Ошибка чтения ключа продавца");
 
         Ok(Transaction {
             sender,
