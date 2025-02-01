@@ -10,7 +10,6 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use log::{info, warn, error};
 
 // Структура кошелька
-#[derive(Clone)]
 pub struct Wallet {
     public_key: RsaPublicKey,
     private_key: RsaPrivateKey,

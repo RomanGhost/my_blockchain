@@ -12,7 +12,7 @@ pub fn server_thread(address: String) -> (Server, Receiver<Message>, JoinHandle<
 
     // Input server address and run it in a separate thread.
     let server_thread = thread::spawn(move || {
-        server.run(address);
+        server.run(address.as_ref());
     });
 
     let rx_server = rx;

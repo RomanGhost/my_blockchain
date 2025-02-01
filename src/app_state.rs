@@ -7,7 +7,7 @@ use crate::coin::blockchain::wallet::Wallet;
 use crate::coin::server::protocol::peers::P2PProtocol;
 use crate::coin::server::server::Server;
 
-#[derive(Clone)]
+
 pub struct AppState {
     pub server: Server,
     pub p2p_protocol: Arc<Mutex<P2PProtocol>>,
