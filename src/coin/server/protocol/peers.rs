@@ -66,7 +66,10 @@ impl P2PProtocol {
                 debug!("Message send to channel: {}", message_json);
                 self.broadcast(message.clone(), true);
                 //Отправка в канал сообщений
+                //Отправка в канал сообщений
                 self.sender.send(message.clone()).unwrap();
+                // Рассылка сообщения
+                self.broadcast(message, true);
             }
             Err(e) => {
                 warn!("Failed to deserialize response_message: {}, {}", e, message_json);
@@ -85,7 +88,7 @@ impl P2PProtocol {
         let response_message = request::MessageFirstInfo::new();
         let response_message = Message::RequestMessageInfo(response_message);
         info!("Сообщение сформировано");
-
+        //отправка сообщения в поток о том что нужно очистить свой блок
         self.broadcast(response_message, false);
     }
 
