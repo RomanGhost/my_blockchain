@@ -41,7 +41,7 @@ impl Server {
                 Ok(mut stream) => {
                     let connection_pool = self.connection_pool.clone();
                     let p2p_protocol = self.p2p_protocol.clone();
-                    let peer_address = stream.peer_addr()?.to_string();
+                    let peer_address = stream.peer_addr()?.ip().to_string();
 
                     thread::spawn(move || {
                         if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, false) {
@@ -65,7 +65,7 @@ impl Server {
 
         let connection_pool = self.connection_pool.clone();
         let p2p_protocol = self.p2p_protocol.clone();
-        let peer_address = stream.peer_addr()?.to_string();
+        let peer_address = stream.peer_addr()?.ip().to_string();
 
         thread::spawn(move || {
             if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, true) {

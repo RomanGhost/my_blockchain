@@ -121,13 +121,8 @@ pub fn message_thread(app_state: Arc<AppState>, rx_server: Receiver<Message>) ->
                 }
                 Message::ResponsePeerMessage(message) => {
                     for addr in message.get_peers() {
-                        let mut addr_iter = addr.split(":");
-
-                        if let (Some(host), Some(port)) = (addr_iter.next(), addr_iter.next()) {
-                            app_state.server.connect(host, port);
-                        } else {
-                            warn!("Invalid address format");
-                        }
+                        let port = "7878";
+                        let _ = app_state.server.connect(addr.as_str(), port);;
                     }
                 }
                 Message::ResponseTextMessage(message) => {
