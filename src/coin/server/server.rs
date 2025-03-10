@@ -59,6 +59,7 @@ impl Server {
     }
 
     pub fn connect(&self, ip: &str, port: &str) -> io::Result<()> {
+        // connected to other node
         let mut stream = TcpStream::connect(format!("{}:{}", ip, port))?;
         info!("Successfully connected to {}:{}", ip, port);
 
@@ -89,7 +90,9 @@ fn handle_connection(
 ) -> Result<(), ServerError> {
     let mut last_message_time = Instant::now();
 
+    // send handshake to connected server
     send_handshake(stream)?;
+    // read handshake from other server
     read_handshake(stream, peer_address, connection_pool, &mut last_message_time)?;
 
     info!("Authorized client connected from {}", peer_address);

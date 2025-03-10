@@ -52,7 +52,7 @@ fn main() {
     let app_state = Arc::new(app_state);
 
     // Запуск потока майнинга, если пользователь выбрал эту опцию
-    let mining_thread_handle = if get_input_text("Запустить майнинг? [y/n]") == "y" {
+    let mining_thread_handle = if app_state.mining_flag {
         Some(mining_thread(app_state.clone()))
     } else {
         None

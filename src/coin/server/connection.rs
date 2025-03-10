@@ -75,7 +75,6 @@ impl ConnectionPool {
         }
     }
 
-
     pub fn get_buffer(&self) -> Vec<u8> {
         vec![0; self.buffer_size]
     }
