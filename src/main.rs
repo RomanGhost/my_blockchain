@@ -38,7 +38,7 @@ fn main() {
 
     // Загрузка кошелька
     let wallet = Wallet::load_from_file("cache/wallet.json");
-    let is_mining = true;
+    let is_mining = false;
     // Создание состояния приложения
     let app_state = AppState {
         server: server_clone,
@@ -63,7 +63,7 @@ fn main() {
     // app_state.server.connect("localhost", "7878");
 
     // Основной цикл: обработка команд пользователя
-    // handle_user_commands(app_state.clone());
+    handle_user_commands(app_state.clone());
 
     // Ожидание завершения потоков
     if let Some(mining_handle) = mining_thread_handle {

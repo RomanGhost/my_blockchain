@@ -33,107 +33,57 @@ impl Server {
         }
     }
 
-    pub fn run(&mut self, address: &str) -> io::Result<()> {
-        let listener = TcpListener::bind(address)?;
-        info!("Сервер запущен и слушает адрес {}", address);
-
-        // Запуск отдельного потока для периодической очистки неактивных соединений
-        // let connection_pool_clone = self.connection_pool.clone();
-        // thread::spawn(move || {
-        //     loop {
-        //         thread::sleep(Duration::from_secs(60)); // Проверка каждую минуту
-        //         connection_pool_clone.lock().unwrap().prune_inactive_connections(TIMEOUT_SECONDS);
-        //     }
-        // });
+    pub fn run(&mut self, address: String) {
+        let listener = match TcpListener::bind(address.clone()) {
+            Ok(listener) => {
+                info!("Successfully bound to address {}", address);
+                listener
+            }
+            Err(e) => {
+                error!("Could not bind to address {}: {}", address, e);
+                return;
+            }
+        };
 
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
-                    if stream.local_addr()? == stream.peer_addr()? {
-                        let _ = stream.shutdown(Shutdown::Both);
-                        warn!("Локальный и удаленный адреса совпадают, соединение закрыто");
-                        return Ok(());
-                    }
-                    // Устанавливаем таймаут на новое соединение
-                    stream.set_read_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
-                    stream.set_write_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
-
                     let connection_pool = self.connection_pool.clone();
                     let p2p_protocol = self.p2p_protocol.clone();
+                    let peer_address = stream.peer_addr().unwrap().to_string();
 
-                    match stream.peer_addr() {
-                        Ok(peer_addr) => {
-                            let peer_address = peer_addr.ip().to_string();
-
-                            // Проверяем, есть ли уже соединение с этим адресом
-                            if connection_pool.lock().unwrap().connection_exist(&peer_address) {
-                                info!("Уже существует соединение с {}, закрываем дубликат", peer_address);
-                                let _ = stream.shutdown(Shutdown::Both);
-                                continue;
-                            }
-
-                            thread::spawn(move || {
-                                if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, false) {
-                                    warn!("Ошибка обработки соединения: {:?}", e);
-                                    let _ = stream.shutdown(Shutdown::Both);
-                                }
-                            });
+                    thread::spawn(move || {
+                        if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, false) {
+                            warn!("Failed to handle connection: {:?}", e);
                         }
-                        Err(e) => {
-                            warn!("Не удалось получить адрес пира: {:?}", e);
-                            let _ = stream.shutdown(Shutdown::Both);
-                        }
-                    }
+                    });
                 }
                 Err(e) => {
-                    warn!("Ошибка принятия соединения: {:?}", e);
+                    warn!("Failed to accept a connection: {:?}", e);
                 }
             }
         }
-
-        Ok(())
     }
 
-    pub fn connect(&self, ip: &str, port: &str) -> io::Result<()> {
-        let addr = format!("{}:{}", ip, port);
+    pub fn connect(&self, ip: &str, port: &str) {
 
-        // Проверяем, есть ли уже соединение с этим адресом
-        if self.connection_pool.lock().unwrap().connection_exist(ip) {
-            info!("Соединение с {}:{} уже существует", ip, port);
-            return Ok(());
-        }
+        match TcpStream::connect(format!("{}:{}", ip, port)) {
+            Ok(mut stream) => {
+                info!("Successfully connected to {}:{}", ip, port);
+                let connection_pool = self.connection_pool.clone();
+                let p2p_protocol = self.p2p_protocol.clone();
+                let peer_address = stream.peer_addr().unwrap().to_string();
 
-        info!("Подключение к {}:{}", ip, port);
-        let mut stream = TcpStream::connect_timeout(
-            &addr.parse().map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            Duration::from_secs(CONNECTION_TIMEOUT)
-        )?;
-
-        // Устанавливаем таймауты
-        stream.set_read_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
-        stream.set_write_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
-
-        if stream.local_addr()? == stream.peer_addr()? {
-            let _ = stream.shutdown(Shutdown::Both);
-            warn!("Локальный и удаленный адреса совпадают, соединение закрыто");
-            return Ok(());
-        }
-
-        info!("Успешно подключились к {}:{}", ip, port);
-
-        let connection_pool = self.connection_pool.clone();
-        let p2p_protocol = self.p2p_protocol.clone();
-        let peer_address = stream.peer_addr()?.ip().to_string();
-
-        thread::spawn(move || {
-            if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, true) {
-                warn!("Ошибка обработки соединения: {:?}", e);
-                let _ = stream.shutdown(Shutdown::Both);
-                connection_pool.lock().unwrap().remove_peer(&peer_address);
+                thread::spawn(move || {
+                    if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, true) {
+                        warn!("Failed to handle connection: {:?}", e);
+                    }
+                });
             }
-        });
-
-        Ok(())
+            Err(e) => {
+                warn!("Cannot connect to: {:?}", e);
+            }
+        }
     }
 
     pub fn get_peer_addresses(&self) -> Vec<String> {
