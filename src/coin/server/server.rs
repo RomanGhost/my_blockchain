@@ -53,7 +53,7 @@ impl Server {
                     let peer_address = stream.peer_addr().unwrap().to_string();
 
                     thread::spawn(move || {
-                        if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, false) {
+                        if let Err(e) = handle_connection(&peer_address, &mut stream, connection_pool.clone(), p2p_protocol.clone(), false) {
                             warn!("Failed to handle connection: {:?}", e);
                         }
                     });
@@ -75,7 +75,7 @@ impl Server {
                 let peer_address = stream.peer_addr().unwrap().to_string();
 
                 thread::spawn(move || {
-                    if let Err(e) = handle_connection(&peer_address, &mut stream, &connection_pool, &p2p_protocol, true) {
+                    if let Err(e) = handle_connection(&peer_address, &mut stream, connection_pool.clone(), p2p_protocol.clone(), true) {
                         warn!("Failed to handle connection: {:?}", e);
                     }
                 });
@@ -98,8 +98,8 @@ impl Server {
 fn handle_connection(
     peer_address: &str,
     stream: &mut TcpStream,
-    connection_pool: &Arc<Mutex<ConnectionPool>>,
-    p2p_protocol: &Arc<Mutex<P2PProtocol>>,
+    connection_pool: Arc<Mutex<ConnectionPool>>,
+    p2p_protocol: Arc<Mutex<P2PProtocol>>,
     is_connect: bool,
 ) -> Result<(), ServerError> {
     let mut last_message_time = Instant::now();
@@ -108,7 +108,7 @@ fn handle_connection(
     send_handshake(stream)?;
 
     // Читаем рукопожатие (для входящих) или ответное рукопожатие (для исходящих)
-    read_handshake(stream, peer_address, connection_pool, &mut last_message_time)?;
+    read_handshake(stream, peer_address, connection_pool.clone(), &mut last_message_time)?;
 
     info!("Авторизованный клиент подключен с адреса {}", peer_address);
 
@@ -130,7 +130,7 @@ fn handle_connection(
     }
 
     // Основной цикл обработки сообщений
-    monitor_connection(peer_address, stream, connection_pool, p2p_protocol, &mut last_message_time)
+    monitor_connection(peer_address, stream, connection_pool.clone(), p2p_protocol.clone(), &mut last_message_time)
 }
 
 fn send_handshake(stream: &mut TcpStream) -> io::Result<()> {
@@ -143,7 +143,7 @@ fn send_handshake(stream: &mut TcpStream) -> io::Result<()> {
 fn read_handshake(
     stream: &mut TcpStream,
     peer_address: &str,
-    connection_pool: &Arc<Mutex<ConnectionPool>>,
+    connection_pool: Arc<Mutex<ConnectionPool>>,
     last_message_time: &mut Instant,
 ) -> Result<(), ServerError> {
     debug!("Ожидание рукопожатия от {}", peer_address);
@@ -206,8 +206,8 @@ fn read_handshake(
 fn monitor_connection(
     peer_address: &str,
     stream: &mut TcpStream,
-    connection_pool: &Arc<Mutex<ConnectionPool>>,
-    p2p_protocol: &Arc<Mutex<P2PProtocol>>,
+    connection_pool: Arc<Mutex<ConnectionPool>>,
+    p2p_protocol: Arc<Mutex<P2PProtocol>>,
     last_message_time: &mut Instant,
 ) -> Result<(), ServerError> {
     let mut buffer = vec![0; BUFFER_SIZE];

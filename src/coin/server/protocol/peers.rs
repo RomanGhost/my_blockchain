@@ -4,7 +4,7 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::sync::mpsc::Sender;
 use chrono::{DateTime, Utc};
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use crate::coin::blockchain::block::Block;
 use crate::coin::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::server::connection::ConnectionPool;
@@ -121,12 +121,15 @@ impl P2PProtocol {
     pub fn response_peers(&mut self) {
         let peer_addresses;
         {
-            let connection_pool = self.connection_pool.lock().unwrap();
+            // Обработка PoisonError с помощью into_inner()
+            let connection_pool = self.connection_pool.lock().unwrap_or_else(|e| {
+                error!("Mutex connection_pool отравлен: {:?}", e);
+                e.into_inner()
+            });
             peer_addresses = connection_pool.get_peer_addresses();
         }
         let response_message = response::PeerMessage::new(peer_addresses);
         let response_message = Message::ResponsePeerMessage(response_message);
-
 
         self.broadcast(response_message, false);
     }
