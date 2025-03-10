@@ -29,7 +29,7 @@ fn main() {
 
     // Инициализация сервера
     // let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
-    let address = String::from("localhost:7878");
+    let address = String::from("0.0.0.0:7878");
     let (server_clone, rx_server, server_thread_handle) = server_thread(address);
     let peer_protocol = server_clone.get_peer_protocol();
 
@@ -38,7 +38,7 @@ fn main() {
 
     // Загрузка кошелька
     let wallet = Wallet::load_from_file("cache/wallet.json");
-
+    let is_mining = true;
     // Создание состояния приложения
     let app_state = AppState {
         server: server_clone,
@@ -47,12 +47,12 @@ fn main() {
         wallet,
         queue: queue.clone(),
         running: Arc::new(AtomicBool::new(true)),
-        mining_flag: Arc::new((Mutex::new(true), Condvar::new())), // Управление майнингом
+        mining_flag: Arc::new((Mutex::new(is_mining), Condvar::new())), // Управление майнингом
     };
     let app_state = Arc::new(app_state);
 
     // Запуск потока майнинга, если пользователь выбрал эту опцию
-    let mining_thread_handle = if app_state.mining_flag {
+    let mining_thread_handle = if is_mining {
         Some(mining_thread(app_state.clone()))
     } else {
         None
@@ -62,7 +62,7 @@ fn main() {
     let message_thread_handle = message_thread(app_state.clone(), rx_server);
 
     // Основной цикл: обработка команд пользователя
-    handle_user_commands(app_state.clone());
+    // handle_user_commands(app_state.clone());
 
     // Остановка программы: изменение флага и ожидание завершения потоков
     app_state.running.store(false, Ordering::SeqCst);

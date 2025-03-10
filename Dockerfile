@@ -23,6 +23,7 @@ FROM rust:latest
 
 # copy the build artifact from the build stage
 COPY --from=build /app/target/release/blockchain .
+RUN mkdir "cache"
 
 
 EXPOSE 7878
