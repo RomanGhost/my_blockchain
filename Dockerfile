@@ -24,6 +24,8 @@ FROM rust:latest
 # copy the build artifact from the build stage
 COPY --from=build /app/target/release/blockchain .
 
+
+EXPOSE 7878
 # set the startup command to run your binary
 CMD ["./blockchain"]
 
