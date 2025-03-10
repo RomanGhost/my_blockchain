@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use log::info;
+use log::{info, warn};
 use crate::app_state::AppState;
 use crate::coin::blockchain::transaction::SerializedTransaction;
 
@@ -52,6 +52,9 @@ pub fn mining_thread(app_state: Arc<AppState>) -> JoinHandle<()> {
             // Если найден новый блок, рассылаем его другим узлам
             if iteration_result {
                 if let Ok(last_block) = chain.get_last_block() {
+                    if last_block.get_id() % 100 == 0{
+                        warn!("Created one of 100 blocks");
+                    }
                     app_state.p2p_protocol.lock().unwrap().response_block(last_block, false);
                     transactions.clear(); // Очищаем пул транзакций после успешного майнинга
                     info!("Отправлен новый блок");
