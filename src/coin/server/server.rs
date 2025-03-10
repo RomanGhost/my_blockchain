@@ -49,6 +49,11 @@ impl Server {
         for stream in listener.incoming() {
             match stream {
                 Ok(mut stream) => {
+                    if stream.local_addr()? == stream.peer_addr()? {
+                        let _ = stream.shutdown(Shutdown::Both);
+                        warn!("Локальный и удаленный адреса совпадают, соединение закрыто");
+                        return Ok(());
+                    }
                     // Устанавливаем таймаут на новое соединение
                     stream.set_read_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
                     stream.set_write_timeout(Some(Duration::from_secs(CONNECTION_TIMEOUT)))?;
@@ -150,17 +155,10 @@ fn handle_connection(
     let mut last_message_time = Instant::now();
 
     // Если это исходящее соединение, сначала отправляем рукопожатие
-    if is_connect {
-        send_handshake(stream)?;
-    }
+    send_handshake(stream)?;
 
     // Читаем рукопожатие (для входящих) или ответное рукопожатие (для исходящих)
     read_handshake(stream, peer_address, connection_pool, &mut last_message_time)?;
-
-    // Для входящих соединений отправляем ответное рукопожатие после получения
-    if !is_connect {
-        send_handshake(stream)?;
-    }
 
     info!("Авторизованный клиент подключен с адреса {}", peer_address);
 

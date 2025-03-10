@@ -60,18 +60,18 @@ fn main() {
 
     // Запуск потока для обработки входящих сообщений
     let message_thread_handle = message_thread(app_state.clone(), rx_server);
-    // app_state.server.connect(ip, port_str);
+    // app_state.server.connect("localhost", "7878");
 
     // Основной цикл: обработка команд пользователя
     // handle_user_commands(app_state.clone());
-
-    // Остановка программы: изменение флага и ожидание завершения потоков
-    app_state.running.store(false, Ordering::SeqCst);
 
     // Ожидание завершения потоков
     if let Some(mining_handle) = mining_thread_handle {
         mining_handle.join().unwrap();
     }
+    // Остановка программы: изменение флага и ожидание завершения потоков
+    app_state.running.store(false, Ordering::SeqCst);
+
     message_thread_handle.join().unwrap();
     server_thread_handle.join().unwrap();
     info!("Program end");

@@ -63,11 +63,10 @@ impl P2PProtocol {
                     self.last_message_id = message_id;
                 }
 
-                debug!("Message send to channel: {}", message_json);
+                info!("Message send to channel: {}", message_json);
                 self.broadcast(message.clone(), true);
                 //Отправка в канал сообщений
-                //Отправка в канал сообщений
-                self.sender.send(message.clone()).unwrap();
+                self.sender.send(message.clone()).expect("send message to channel");
                 // Рассылка сообщения
                 self.broadcast(message, true);
             }
