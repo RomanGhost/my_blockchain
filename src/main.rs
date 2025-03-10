@@ -60,6 +60,7 @@ fn main() {
 
     // Запуск потока для обработки входящих сообщений
     let message_thread_handle = message_thread(app_state.clone(), rx_server);
+    // app_state.server.connect(ip, port_str);
 
     // Основной цикл: обработка команд пользователя
     // handle_user_commands(app_state.clone());
