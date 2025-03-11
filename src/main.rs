@@ -63,7 +63,7 @@ fn main() {
     // app_state.server.connect("localhost", "7878");
 
     // Основной цикл: обработка команд пользователя
-    handle_user_commands(app_state.clone());
+    // handle_user_commands(app_state.clone());
 
     // Ожидание завершения потоков
     if let Some(mining_handle) = mining_thread_handle {
