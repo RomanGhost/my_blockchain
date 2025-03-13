@@ -1,10 +1,11 @@
 use std::fmt;
 use std::fmt::Formatter;
-use chrono::{DateTime, Utc};
-use sha2::{Digest, Sha512};
-use serde::{Serialize, Deserialize};
 
-use crate::coin::blockchain::transaction::SerializedTransaction;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha512};
+
+use crate::coin::node::blockchain::transaction::SerializedTransaction;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block{
@@ -34,15 +35,9 @@ impl Block{
         }
     }
 
-    // pub fn to_string(&self) ->String{
-    //     format!("id: {}\ntime_create: {}\nprevious_hash: {}\nnonce: {}",
-    //             self.id, self.time_create, self.previous_hash,
-    //             self.nonce)
-    // }
-
     pub fn get_hash(&self) ->String{
         let mut hasher = Sha512::new();
-        hasher.update(format!("{}", self.to_json()));
+        hasher.update(format!("{}_{:?}_{}/{}", self.id, self.transactions, self.previous_hash, self.nonce ));
 
         let result = hasher.finalize();
         // Преобразование результата хэширования в строку

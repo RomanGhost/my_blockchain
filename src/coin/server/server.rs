@@ -1,14 +1,16 @@
 use std::fmt::format;
+use std::format;
 use std::io::{Error, ErrorKind, Read};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use log::{error, info, warn};
-use crate::coin::blockchain::block::Block;
-use std::format;
 use std::sync::mpsc::{channel, Sender};
+use std::thread;
 use std::time::Duration;
-use crate::app_state::AppState;
+
+use log::{error, info, warn};
+
+use crate::coin::app_state::AppState;
+use crate::coin::node::blockchain::block::Block;
 use crate::coin::server::pool::connection_pool::ConnectionPool;
 use crate::coin::server::pool::pool_message::PoolMessage;
 use crate::coin::server::protocol::message::r#type::Message;
@@ -40,7 +42,7 @@ impl Server{
 
                     // Запускаем отдельный поток для каждого пира
                     thread::spawn(move || {
-                        handle(stream, pool_tx)?
+                        handle(stream, pool_tx);
                     });
                 },
                 Err(e) => {
@@ -64,7 +66,7 @@ impl Server{
 
                 // Запускаем отдельный поток для каждого пира
                 thread::spawn(move || {
-                    handle(stream, pool_tx)?;
+                    handle(stream, pool_tx);
                 });
             },
             Err(e) => {

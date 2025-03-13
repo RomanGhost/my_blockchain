@@ -1,13 +1,14 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Duration;
+
 use log::{debug, error, info, warn};
-use crate::app_state::AppState;
-use crate::coin::blockchain::block::Block;
-use crate::coin::blockchain::transaction::Transaction;
+
+use crate::coin::app_state::AppState;
+use crate::coin::node::blockchain::block::Block;
 use crate::coin::server::pool::pool_message::PoolMessage;
 use crate::coin::server::pool::pool_message::PoolMessage::BroadcastMessage;
-use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::message::{request, response};
+use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::message::request::{BlocksBeforeMessage, LastNBlocksMessage};
 use crate::coin::server::protocol::message::response::{BlockMessage, ChainMessage, PeerMessage, TransactionMessage};
 
@@ -33,26 +34,28 @@ impl P2PProtocol{
     }
 
     pub fn run(&mut self){
-        match self.rx.recv_timeout(Duration::from_secs(1)) {
-            // input from other nodes
-            Ok(Message::RawMessage(message_json)) => {
-                let message_json = message_json.trim_end_matches('\0');
-                debug!("P2P protocol: message json: {}", message_json);
-                match Message::from_json(message_json) {
-                    Ok(message) => {
-                        self.process_message(message);
-                    },
-                    Err(e) => {
-                        warn!("Failed to deserialize response_message: {}, {}", e, message_json);
-                    }
-                };
-            },
-            // input from this server
-            Ok(message) => {
-                self.send_message(message);
-            },
-            Err(err) => {
-                error!("Unknown peer message type: {}", err);
+        loop {
+            match self.rx.recv_timeout(Duration::from_secs(1)) {
+                // input from other nodes
+                Ok(Message::RawMessage(message_json)) => {
+                    let message_json = message_json.trim_end_matches('\0');
+                    debug!("P2P protocol: message json: {}", message_json);
+                    match Message::from_json(message_json) {
+                        Ok(message) => {
+                            self.process_message(message);
+                        },
+                        Err(e) => {
+                            warn!("Failed to deserialize response_message: {}, {}", e, message_json);
+                        }
+                    };
+                },
+                // input from this server
+                Ok(message) => {
+                    self.send_message(message);
+                },
+                Err(err) => {
+                    error!("Unknown peer message type: {}", err);
+                }
             }
         }
     }
@@ -111,7 +114,7 @@ impl P2PProtocol{
         let json_message = send_message.to_json();
 
         let broadcast_message = BroadcastMessage(json_message);
-        self.pool_tx(broadcast_message);
+        self.pool_tx.send(broadcast_message).unwrap();
     }
 
     fn process_block(&self, msg:BlockMessage) {
@@ -151,7 +154,7 @@ impl P2PProtocol{
 
         let json_message = response_message.to_json();
         let broadcast_message = BroadcastMessage(json_message);
-        self.pool_tx(broadcast_message);
+        self.pool_tx.send(broadcast_message).unwrap();
     }
 
     fn send_last_n_locks(&mut self, msg:LastNBlocksMessage){
@@ -175,6 +178,6 @@ impl P2PProtocol{
 
         let json_message = Message::ResponseChainMessage(chain_message).to_json();
         let broadcast_message = BroadcastMessage(json_message);
-        self.pool_tx(broadcast_message);
+        self.pool_tx.send(broadcast_message).unwrap();
     }
 }
