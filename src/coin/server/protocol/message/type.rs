@@ -6,6 +6,8 @@ use crate::coin::server::protocol::message::{request, response};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "content")] // Добавляем тег для типа сообщения
 pub enum Message {
+    RawMessage(String),
+
     ResponseBlockMessage(response::BlockMessage),
     ResponseTransactionMessage(response::TransactionMessage),
     ResponseTextMessage(response::TextMessage),
@@ -16,7 +18,6 @@ pub enum Message {
     RequestLastNBlocksMessage(request::LastNBlocksMessage),
     RequestBlocksBeforeMessage(request::BlocksBeforeMessage),
     RequestMessageInfo(request::MessageFirstInfo),
-
 }
 
 impl Message {
@@ -31,6 +32,8 @@ impl Message {
     // Унифицированные методы get_id и set_id для всех вариантов сообщения
     pub fn get_id(&self) -> u64 {
         match self {
+            Message::RawMessage(msg) => 0,
+
             Message::ResponseBlockMessage(msg) => msg.get_id(),
             Message::ResponseTransactionMessage(msg) => msg.get_id(),
             Message::ResponseTextMessage(msg) => msg.get_id(),
@@ -46,6 +49,8 @@ impl Message {
 
     pub fn set_id(&mut self, id: u64) {
         match self {
+            Message::RawMessage(msg) => (),
+
             Message::ResponseBlockMessage(msg) => msg.set_id(id),
             Message::ResponseTransactionMessage(msg) => msg.set_id(id),
             Message::ResponseTextMessage(msg) => msg.set_id(id),

@@ -196,6 +196,7 @@ impl SerializedTransaction {
         let buyer_base64 = buyer_base64.trim().to_string();
 
         SerializedTransaction {
+            //time
             sender: sender_base64,
             buyer: buyer_base64,
             seller: seller_base64,

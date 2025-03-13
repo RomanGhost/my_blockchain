@@ -1,2 +1,2 @@
 pub mod message;
-pub mod peers;
+pub mod p2p_protocol;
