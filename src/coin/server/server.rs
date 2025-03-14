@@ -23,7 +23,7 @@ pub struct Server {
 impl Server{
     pub fn new(pool_tx: Sender<PoolMessage>) -> Self{
 
-        Server{ pool_tx}
+        Server{pool_tx}
     }
 
     pub fn run(&mut self, address: &str) -> Result<(), Error>{
@@ -73,8 +73,11 @@ impl Server{
                 error!("Error connect to {}:{}, err:{}",address, port, e);
             }
         }
-
         Ok(())
+    }
+
+    pub fn get_pool_sender(&self) -> Sender<PoolMessage>{
+        self.pool_tx.clone()
     }
 }
 

@@ -33,6 +33,10 @@ impl P2PProtocol{
         }
     }
 
+    pub fn get_sender_protocol(&self) -> Sender<Message> {
+        self.tx.clone()
+    }
+
     pub fn run(&mut self){
         loop {
             match self.rx.recv_timeout(Duration::from_secs(1)) {
@@ -54,7 +58,14 @@ impl P2PProtocol{
                     self.send_message(message);
                 },
                 Err(err) => {
-                    error!("Unknown peer message type: {}", err);
+                    match err {
+                        RecvTimeoutError => {
+                            continue
+                        }
+                        (_) =>{
+                            error!("Unknown peer message type: {}", err);
+                        }
+                    }
                 }
             }
         }
@@ -144,7 +155,6 @@ impl P2PProtocol{
             self.app_state.connect(peer);
         }
     }
-
 
     fn send_first_message(&mut self){
         self.last_message_id += 1;

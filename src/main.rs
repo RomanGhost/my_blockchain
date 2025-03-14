@@ -1,7 +1,7 @@
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
 use std::sync::mpsc::channel;
-use std::thread;
-
+use std::{io, thread};
+use std::io::Write;
 use log::{error, info, warn};
 use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
@@ -11,6 +11,8 @@ use crate::coin::node::node_mining::NodeMining;
 use crate::coin::node::node_transaction::NodeTransaction;
 use crate::coin::server::pool;
 use crate::coin::server::pool::connection_pool::ConnectionPool;
+use crate::coin::server::protocol::message::r#type::Message;
+use crate::coin::server::protocol::message::response::TextMessage;
 use crate::coin::server::protocol::p2p_protocol::P2PProtocol;
 use crate::coin::server::server::Server;
 
@@ -50,14 +52,20 @@ fn initialise_nodes(mut app_state: &mut AppState) -> (NodeTransaction, Arc<Mutex
     (node_transaction, mutex_blockchain_node, node_mining)
 }
 
+fn get_input_text(info_text: &str) -> String {
+    print!("{}: ", info_text);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => input.trim().to_string(),
+        Err(e) => {
+            eprintln!("Error reading input: {}", e);
+            String::new()
+        }
+    }
+}
+
 fn main() {
-
-    let mut app_state = AppState::default();
-
-    let (nt, nb, nm) = initialise_nodes(&mut app_state);
-    let (cp, p2p, server) = initialize_server(app_state);
-    // let mut nt = NodeTransaction::new();
-
     std::env::set_var("RUST_LOG", "info");
 
     // // Инициализируем логгер
@@ -66,4 +74,53 @@ fn main() {
     // // Пример логгирования сообщений с разным уровнем
     info!("Program run");
 
+    let mut app_state = AppState::default();
+
+    let (nt, nb, nm) = initialise_nodes(&mut app_state);
+    let (mut cp, mut p2p, mut server) = initialize_server(app_state);
+
+    let protocol_sender = p2p.get_sender_protocol();
+    let connection_pool_thread = thread::spawn(move || {
+        cp.run();
+    });
+    let protocol_thread = thread::spawn(move || {
+        p2p.run();
+    });
+
+    let server_copy = Server::new(server.get_pool_sender());
+    let server_thread = thread::spawn(move || {
+        server.run("0.0.0.0:7878").expect("Can't run server thread");
+    });
+
+    let server = server_copy;
+    server.connect("localhost", 7879).expect("Connect to ");
+
+    loop {
+        println!("\nДоступные команды:");
+        println!("1. Подключиться к другому серверу (connect <IP>:<port>)");
+        println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
+        println!("3. Выйти (exit)");
+
+        match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
+            ["connect", address] => {
+                if let Some((ip, port_str)) = address.split_once(':') {
+                    server.connect(ip, 7879).unwrap();
+                } else {
+                    println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
+                }
+            }
+            ["broadcast", message @ ..] if !message.is_empty() => {
+                let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
+                protocol_sender.send(response_message).unwrap()
+            }
+            ["exit"] => {
+                println!("Выход из программы.");
+                break;
+            },
+            _ => println!("Неверная команда."),
+        }
+    }
+    protocol_thread.join().unwrap();
+    connection_pool_thread.join().unwrap();
+    server_thread.join().unwrap();
 }
