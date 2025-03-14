@@ -94,7 +94,7 @@ fn command_input(protocol_sender: Sender<Message>){
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_LOG", "info");
 
     // // Инициализируем логгер
     env_logger::init();
@@ -115,7 +115,7 @@ fn main() {
         p2p.run();
     });
 
-    let is_container = false;
+    let is_container = true;
     //UserNode
     if !is_container {
         let server_copy = Server::new(server.get_pool_sender());
@@ -130,6 +130,10 @@ fn main() {
         command_input(protocol_sender);
         server_thread.join().unwrap();
     } else {
+        match std::env::var("ConnectAddr") {
+            Ok(val) => server.connect(val.as_str(), 7878).unwrap(),
+            Err(err) => info!("Error read env: {}", err)
+        }
         server.run("0.0.0.0:7878").expect("Can't run server thread");
     }
     protocol_thread.join().unwrap();
