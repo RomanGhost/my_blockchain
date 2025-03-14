@@ -1,5 +1,5 @@
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 use std::{io, thread};
 use std::io::Write;
 use log::{error, info, warn};
@@ -65,6 +65,34 @@ fn get_input_text(info_text: &str) -> String {
     }
 }
 
+fn command_input(protocol_sender: Sender<Message>){
+    loop {
+        println!("\nДоступные команды:");
+        println!("1. Подключиться к другому серверу (connect <IP>:<port>)");
+        println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
+        println!("3. Выйти (exit)");
+
+        match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
+            // ["connect", address] => {
+            //     if let Some((ip, port_str)) = address.split_once(':') {
+            //         server.connect(ip, 7879).unwrap();
+            //     } else {
+            //         println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
+            //     }
+            // }
+            ["broadcast", message @ ..] if !message.is_empty() => {
+                let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
+                protocol_sender.send(response_message).unwrap()
+            }
+            ["exit"] => {
+                println!("Выход из программы.");
+                break;
+            },
+            _ => println!("Неверная команда."),
+        }
+    }
+}
+
 fn main() {
     std::env::set_var("RUST_LOG", "debug");
 
@@ -87,44 +115,23 @@ fn main() {
         p2p.run();
     });
 
-    // //UserNode
-    // let server_copy = Server::new(server.get_pool_sender());
-    // let server_thread = thread::spawn(move || {
-    //     server.run("0.0.0.0:7878").expect("Can't run server thread");
-    // });
-    //
-    // let server = server_copy;
-    //
-    // server.connect("localhost", 7879).expect("Connect to ");
+    let is_container = false;
     //UserNode
-    server.run("0.0.0.0:7878").expect("Can't run server thread");
-    //
-    // loop {
-    //     println!("\nДоступные команды:");
-    //     println!("1. Подключиться к другому серверу (connect <IP>:<port>)");
-    //     println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
-    //     println!("3. Выйти (exit)");
-    //
-    //     match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
-    //         ["connect", address] => {
-    //             if let Some((ip, port_str)) = address.split_once(':') {
-    //                 server.connect(ip, 7879).unwrap();
-    //             } else {
-    //                 println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
-    //             }
-    //         }
-    //         ["broadcast", message @ ..] if !message.is_empty() => {
-    //             let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
-    //             protocol_sender.send(response_message).unwrap()
-    //         }
-    //         ["exit"] => {
-    //             println!("Выход из программы.");
-    //             break;
-    //         },
-    //         _ => println!("Неверная команда."),
-    //     }
-    // }
-    // server_thread.join().unwrap();
+    if !is_container {
+        let server_copy = Server::new(server.get_pool_sender());
+        let server_thread = thread::spawn(move || {
+            server.run("0.0.0.0:7878").expect("Can't run server thread");
+        });
+
+        let server = server_copy;
+
+        server.connect("localhost", 7879).expect("Connect to ");
+        //UserNode
+        command_input(protocol_sender);
+        server_thread.join().unwrap();
+    } else {
+        server.run("0.0.0.0:7878").expect("Can't run server thread");
+    }
     protocol_thread.join().unwrap();
     connection_pool_thread.join().unwrap();
 }

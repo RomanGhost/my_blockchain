@@ -75,7 +75,7 @@ impl P2PProtocol{
         match message{
             Message::RequestMessageInfo(_) => {
                 info!("Type:RequestMessageInfo get");
-                // self.send_first_message();
+                self.send_first_message();
 
                 return
             }
