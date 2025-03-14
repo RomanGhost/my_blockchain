@@ -7,7 +7,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 use crate::coin::app_state::AppState;
 use crate::coin::node::blockchain::block::Block;
@@ -97,7 +97,7 @@ fn handle(
 
     // Установим таймаут для чтения
     if let Ok(mut locked_stream) = stream_clone.lock() {
-        let _ = locked_stream.set_read_timeout(Some(Duration::from_secs(1)));
+        let _ = locked_stream.set_read_timeout(Some(Duration::from_millis(500)));
     }
 
     loop {
@@ -120,6 +120,7 @@ fn handle(
             Ok(n) => {
                 // Получены данные
                 if let Ok(message) = std::str::from_utf8(&buffer[0..n]) {
+                    debug!("message get to server: {:?}", message);
                     let _ = pool_tx.send(PoolMessage::PeerMessage(addr, message.to_string()));
                 }
             },

@@ -75,7 +75,7 @@ impl P2PProtocol{
         match message{
             Message::RequestMessageInfo(_) => {
                 info!("Type:RequestMessageInfo get");
-                self.send_first_message();
+                // self.send_first_message();
 
                 return
             }
@@ -99,6 +99,7 @@ impl P2PProtocol{
         }else{
             self.last_message_id = message_id;
         }
+        self.pool_tx.send(PoolMessage::BroadcastMessage(message.to_json())).expect("TODO: panic message");
 
         match message {
             Message::ResponseTransactionMessage(msg) =>self.process_transaction(msg),

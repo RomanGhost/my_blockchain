@@ -5,12 +5,13 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use log::{debug, info};
+use log::{debug, info, warn};
 
 use crate::coin::server::pool::peer_connection::PeerConnection;
 use crate::coin::server::pool::pool_message::PoolMessage;
 use crate::coin::server::protocol::message::r#type::Message;
-
+use crate::coin::server::protocol::message::r#type::Message::RequestMessageInfo;
+use crate::coin::server::protocol::message::request::MessageFirstInfo;
 pub struct ConnectionPool {
     connections: HashMap<SocketAddr, PeerConnection>,
     timeout: Duration,
@@ -47,6 +48,7 @@ impl ConnectionPool {
                 addr,
                 stream,
                 last_seen: Instant::now(),
+                buffer: String::new(),
             },
         );
     }
@@ -67,7 +69,7 @@ impl ConnectionPool {
     fn send_to_peer(&mut self, addr: &SocketAddr, message: &str) -> Result<(), Error> {
         if let Some(peer) = self.connections.get_mut(addr) {
             if let Ok(mut stream) = peer.stream.lock() {
-                stream.write_all(message.as_bytes())?;
+                stream.write_all(format!("{}\n", message).as_bytes())?;
                 peer.last_seen = Instant::now();
                 return Ok(());
             }
@@ -81,7 +83,7 @@ impl ConnectionPool {
 
         for (addr, peer) in &mut self.connections {
             if let Ok(mut stream) = peer.stream.lock() {
-                if let Err(_) = stream.write_all(message.as_bytes()) {
+                if let Err(_) = stream.write_all(format!("{}\n", message).as_bytes()) {
                     failed_peers.push(*addr);
                 } else {
                     peer.last_seen = Instant::now();
@@ -115,9 +117,10 @@ impl ConnectionPool {
     pub fn run(&mut self) {
         loop {
             // Обрабатываем входящие сообщения для пула
-            match self.rx.recv_timeout(Duration::from_secs(1)) {
+            match self.rx.recv_timeout(Duration::from_secs(600)) {
                 Ok(PoolMessage::NewPeer(addr, stream)) => {
                     self.add_connection(addr, stream);
+                    self.protocol_tx.send(RequestMessageInfo(MessageFirstInfo::new())).unwrap();
                 },
                 Ok(PoolMessage::PeerDisconnected(addr)) => {
                     self.remove_connection(&addr);
@@ -131,12 +134,47 @@ impl ConnectionPool {
                     let _ = response_tx.send(peers); // Игнорируем ошибку, если получатель отключился
                 },
                 Ok(PoolMessage::PeerMessage(addr, message)) => {
-                    // Обрабатываем сообщение от пира
-                    self.protocol_tx.send(Message::RawMessage(message)).unwrap();
+                    self.handle_peer_message(addr, message);
                 },
-                Err(_) => {
+                Err(err) => {
+                    warn!("Error timeout pool: {}", err);
                     // Таймаут - чистим неактивные соединения
-                    self.cleanup_inactive();
+                    // self.cleanup_inactive();
+                }
+            }
+        }
+    }
+
+    // Новая функция для обработки входящих сообщений
+    fn handle_peer_message(&mut self, addr: SocketAddr, message: String) {
+        // Сначала обрабатываем буфер и извлекаем сообщения
+        let messages = if let Some(peer) = self.connections.get_mut(&addr) {
+            let mut buffer = std::mem::take(&mut peer.buffer);
+            buffer.push_str(&message);
+
+            let mut messages = Vec::new();
+            while let Some(pos) = buffer.find('\n') {
+                let (message, remaining) = buffer.split_at(pos);
+                messages.push(message.to_string());
+                buffer = remaining[1..].to_string();
+            }
+            peer.buffer = buffer;
+            Some(messages)
+        } else {
+            debug!("Получено сообщение от неизвестного пира: {}", addr);
+            None
+        };
+
+        // Теперь обрабатываем сообщения без одновременного заимствования connections
+        if let Some(messages) = messages {
+            for message in messages {
+                // self.broadcast(&message);
+                self.protocol_tx.send(Message::RawMessage(message))
+                    .unwrap_or_else(|_| debug!("Ошибка отправки"));
+
+                // Обновляем время активности после broadcast
+                if let Some(peer) = self.connections.get_mut(&addr) {
+                    peer.last_seen = Instant::now();
                 }
             }
         }
