@@ -92,7 +92,7 @@ impl Blockchain {
     }
 }
 
-pub fn validate_chain(blockchain: &Vec<Block>, new_chain: &Vec<Block>) -> bool {
+pub fn validate_chain(new_chain: &Vec<Block>) -> bool {
     for i in 1..new_chain.len() {
         let current_block = &new_chain[i];
         let previous_block = &new_chain[i - 1];

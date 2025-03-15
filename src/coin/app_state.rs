@@ -4,16 +4,15 @@ use std::sync::mpsc::{channel, Sender};
 use chrono::{DateTime, Utc};
 
 use crate::coin::node::blockchain::block::Block;
+use crate::coin::node::blockchain::blockchain::{Blockchain, validate_chain};
 use crate::coin::node::blockchain::transaction::SerializedTransaction;
-use crate::coin::node::node_blockchain::NodeBlockchain;
-use crate::coin::node::node_message::{BlockchainMessage, TransactionMessage};
+use crate::coin::node::node_message::TransactionMessage;
 use crate::coin::server::server::Server;
 
 pub struct AppState {
     server: Server,
-    blockchain_tx: Sender<BlockchainMessage>,
     transaction_tx: Sender<TransactionMessage>,
-    blockchain: Arc<Mutex<NodeBlockchain>>,
+    blockchain: Arc<Mutex<Blockchain>>,
 
 }
 
@@ -22,9 +21,8 @@ impl AppState {
     pub fn default() -> Self {
         AppState {
             server: Server::new(channel().0), // или используйте свой конструктор
-            blockchain_tx: channel().0, // временные значения, будут перезаписаны в set_blockchain
             transaction_tx: channel().0,
-            blockchain: Arc::new(Mutex::new(NodeBlockchain::new())),
+            blockchain: Arc::new(Mutex::new(Blockchain::new())),
         }
     }
     pub fn set_server(&mut self, server: Server) {
@@ -32,21 +30,23 @@ impl AppState {
     }
 
     pub fn set_blockchain(&mut self,
-                          blockchain_tx: Sender<BlockchainMessage>,
                           transaction_tx: Sender<TransactionMessage>,
-                          blockchain: Arc<Mutex<NodeBlockchain>>
+                          blockchain: Arc<Mutex<Blockchain>>
     ) {
-        self.blockchain_tx = blockchain_tx;
         self.blockchain = blockchain;
         self.transaction_tx = transaction_tx;
     }
 
     pub fn add_block(&self, block:Block, is_force:bool){
-        self.blockchain_tx.send(BlockchainMessage::BlockAdd(block)).unwrap();
+        if is_force{
+            self.blockchain.lock().unwrap().add_force_block(block);
+        }else {
+            self.blockchain.lock().unwrap().add_block(block).unwrap();
+        }
     }
 
     pub fn check_chain(&self, chain:Vec<Block>){
-        self.blockchain_tx.send(BlockchainMessage::ChainCheck(chain)).unwrap();
+        validate_chain(&chain);
     }
 
     pub fn get_last_n_blocks(&self, n:usize)-> Vec<Block>{

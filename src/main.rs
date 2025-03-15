@@ -2,17 +2,18 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
 use std::sync::mpsc::{channel, Sender};
 use std::{io, thread};
 use std::io::Write;
+use std::time::Duration;
 use log::{error, info, warn};
 use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
-use crate::coin::node::{node_blockchain, node_mining};
-use crate::coin::node::node_blockchain::NodeBlockchain;
+use crate::coin::node::blockchain::block::Block;
+use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::node_mining::NodeMining;
 use crate::coin::node::node_transaction::NodeTransaction;
 use crate::coin::server::pool;
 use crate::coin::server::pool::connection_pool::ConnectionPool;
 use crate::coin::server::protocol::message::r#type::Message;
-use crate::coin::server::protocol::message::response::TextMessage;
+use crate::coin::server::protocol::message::response::{BlockMessage, TextMessage};
 use crate::coin::server::protocol::p2p_protocol::P2PProtocol;
 use crate::coin::server::server::Server;
 
@@ -35,21 +36,18 @@ fn initialize_server(mut app_state:AppState) -> (ConnectionPool, P2PProtocol, Se
     (pool, protocol, server)
 }
 
-fn initialise_nodes(mut app_state: &mut AppState) -> (NodeTransaction, Arc<Mutex<NodeBlockchain>>, NodeMining){
+fn initialise_nodes(mut app_state: &mut AppState, tx_external: Sender<Block>,) -> (NodeTransaction, NodeMining, Arc<Mutex<Blockchain>>) {
     let(transaction_tx, transaction_rx) = channel();
 
     let node_transaction = NodeTransaction::new(transaction_tx);
-    let node_blockchain = NodeBlockchain::new();
 
-    let blockchain_tx = node_blockchain.get_sender();
-    let blockchain = node_blockchain.get_blockchain();
+    let mutex_blockchain = Arc::new(Mutex::new(Blockchain::new()));
     let transaction_tx = node_transaction.get_sender();
 
-    let mutex_blockchain_node =  Arc::new(Mutex::new(node_blockchain));
-    app_state.set_blockchain(blockchain_tx.clone(), transaction_tx.clone(), mutex_blockchain_node.clone());
-    let node_mining = NodeMining::new(blockchain_tx, transaction_tx, transaction_rx, blockchain);
+    app_state.set_blockchain(transaction_tx.clone(), mutex_blockchain.clone());
+    let node_mining = NodeMining::new(transaction_tx, transaction_rx, tx_external, mutex_blockchain.clone());
 
-    (node_transaction, mutex_blockchain_node, node_mining)
+    (node_transaction, node_mining,mutex_blockchain)
 }
 
 fn get_input_text(info_text: &str) -> String {
@@ -73,13 +71,6 @@ fn command_input(protocol_sender: Sender<Message>){
         println!("3. Выйти (exit)");
 
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
-            // ["connect", address] => {
-            //     if let Some((ip, port_str)) = address.split_once(':') {
-            //         server.connect(ip, 7879).unwrap();
-            //     } else {
-            //         println!("Неверный формат адреса. Используйте: connect <IP>:<port>");
-            //     }
-            // }
             ["broadcast", message @ ..] if !message.is_empty() => {
                 let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
                 protocol_sender.send(response_message).unwrap()
@@ -94,8 +85,10 @@ fn command_input(protocol_sender: Sender<Message>){
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
+    let is_mining_pool = false;
+    let is_container = false;
 
+    std::env::set_var("RUST_LOG", "debug");
     // // Инициализируем логгер
     env_logger::init();
     //
@@ -104,10 +97,29 @@ fn main() {
 
     let mut app_state = AppState::default();
 
-    let (nt, nb, nm) = initialise_nodes(&mut app_state);
+    let (tx, rx) = channel();
+    let (mut nt, mut nm, mutex_blockchain) = initialise_nodes(&mut app_state, tx);
     let (mut cp, mut p2p, mut server) = initialize_server(app_state);
 
     let protocol_sender = p2p.get_sender_protocol();
+    let protocol_sender_thread = p2p.get_sender_protocol();
+
+    let node_transaction_thread = thread::spawn(move || {
+        nt.run();
+    });
+
+    if is_mining_pool {
+        let node_mining_thread = thread::spawn(move || {
+            nm.run();
+        });
+
+        let block_to_message_thread = thread::spawn(move || {
+            for b in rx.recv() {
+                protocol_sender_thread.send(Message::ResponseBlockMessage(BlockMessage::new(b, false))).unwrap();
+            }
+        });
+    }
+
     let connection_pool_thread = thread::spawn(move || {
         cp.run();
     });
@@ -115,7 +127,6 @@ fn main() {
         p2p.run();
     });
 
-    let is_container = true;
     //UserNode
     if !is_container {
         let server_copy = Server::new(server.get_pool_sender());

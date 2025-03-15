@@ -1,83 +1,139 @@
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
-
-use log::warn;
+use std::time::Duration;
+use log::{debug, error, warn};
 
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
-use crate::coin::node::node_message::{BlockchainMessage, TransactionMessage};
-use crate::coin::node::node_message::BlockchainMessage::BlockAdd;
+use crate::coin::node::node_message::TransactionMessage;
 use crate::coin::node::node_message::TransactionMessage::{AddTransaction, GetTransaction};
 
 pub struct NodeMining {
-    tx_blockchain: Sender<BlockchainMessage>,
     tx_transactions:Sender<TransactionMessage>,
     rx_transactions: Receiver<TransactionMessage>,
+    tx_external: Sender<Block>,
     blockchain: Arc<Mutex<Blockchain>>,
 }
 
 impl NodeMining {
     pub fn new(
-               tx_blockchain: Sender<BlockchainMessage>,
                tx_transactions:Sender<TransactionMessage>,
                rx_transactions: Receiver<TransactionMessage>,
+               tx_external: Sender<Block>,
                blockchain: Arc<Mutex<Blockchain>>
     ) -> Self{
         NodeMining {
-            tx_blockchain,
             tx_transactions,
             rx_transactions,
+            tx_external,
             blockchain,
         }
     }
     pub fn run(&mut self){
         loop{
-            match self.rx_transactions.recv(){
+            match self.rx_transactions.recv_timeout(Duration::from_millis(300)){
                 Ok(message) => {
                     match message {
                         TransactionMessage::TransactionVec(transactions) => self.mining(transactions),
-                        (_)=>{}
+                        (_)=>{debug!("transactionInfo");}
                     }
                 }
                 Err(err) => {
-                    warn!("Error with mining:{}", err)
+                    match err {
+                        RecvTimeoutError=> {
+                            self.tx_transactions.send(GetTransaction()).unwrap();
+                            debug!("Request transactions in mining");
+                        }
+                        _ => {
+                            error!("Mining| Unknown message type: {}", err);
+                        }
+                    }
                 }
             }
-
-            self.tx_transactions.send(GetTransaction()).unwrap();
         }
     }
-    fn mining(&mut self, transactions: Vec<SerializedTransaction>){
-        let last_block:Block;
-        if let Ok(block) = self.blockchain.lock().expect("error with lock blockchain").get_last_block(){
-            last_block = block;
-        } else{
-            self.blockchain.lock().expect("error with lock for create first").create_first_block();
-            last_block = self.blockchain.lock().expect("error with lock blockchain").get_last_block().unwrap();
-        }
-        let mut nonce = 0;
 
-        // let mut serialise_transaction = Vec::new();
-        // for transaction in transactions{
-        //     serialise_transaction.push(transaction.serialize());
-        // }
-        loop {
-            {
-                let blockchain_last_block = self.blockchain.lock().expect("error with lock blockchain").get_last_block().expect("something wrong with chain");
-                if blockchain_last_block.get_id() != last_block.get_id() {
-                    for transaction in transactions {
-                        self.tx_transactions.send(AddTransaction(transaction)).unwrap()
-                    }
-                    break;
+    fn mining(&mut self, transactions: Vec<SerializedTransaction>) {
+        debug!("Mining new block!");
+
+        // Захватываем блокировку один раз для получения последнего блока.
+        let last_block = {
+            let mut blockchain = self.blockchain.lock().unwrap_or_else(|e| {
+                error!("Mutex poisoned: {}", e);
+                panic!("Critical error with blockchain lock")
+            });
+
+            match blockchain.get_last_block() {
+                Ok(block) => block.clone(),
+                Err(_) => {
+                    warn!("Creating new chain, generating first block");
+                    blockchain.create_first_block();
+                    blockchain.get_last_block().expect("Newly created block should exist")
                 }
             }
+        };
 
-            let new_block = Block::new(last_block.get_id() + 1, transactions.clone(), last_block.get_hash(), nonce);
-            if Blockchain::is_valid_block(&new_block) {
-                self.tx_blockchain.send(BlockAdd(new_block)).unwrap();
+        let mut nonce = 0;
+        debug!("Go to mining cycle");
+
+        loop {
+            // Захватываем блокировку на каждой итерации
+            let blockchain_result = self.blockchain.lock();
+            if blockchain_result.is_err() {
+                error!("Mutex poisoned during mining iteration");
+                break;
             }
-            nonce += 1;
+            let mut blockchain = blockchain_result.unwrap();
+            let current_last_block = match blockchain.get_last_block() {
+                Ok(block) => block,
+                Err(_) => {
+                    error!("Corrupted blockchain state");
+                    break;
+                }
+            };
+
+            // Если последний блок изменился, значит другой поток уже обновил цепочку
+            if current_last_block.get_id() != last_block.get_id() {
+                drop(blockchain); // Освобождаем блокировку
+                // Отправляем транзакции обратно
+                for transaction in transactions.clone() {
+                    if let Err(e) = self.tx_transactions.send(AddTransaction(transaction)) {
+                        error!("Failed to send transaction: {}", e);
+                    }
+                }
+                break;
+            }
+
+            // Создаем новый блок с текущим nonce
+            let new_block = Block::new(
+                current_last_block.get_id() + 1,
+                transactions.clone(),
+                current_last_block.get_hash(),
+                nonce,
+            );
+
+            if Blockchain::is_valid_block(&new_block) {
+                debug!("New block found with nonce: {}", nonce);
+                // Пытаемся добавить блок
+                if let Err(e) = blockchain.add_block(new_block) {
+                    error!("Failed to add valid block: {}", e);
+                }
+                break;
+            } else {
+                nonce += 1;
+            }
+            // debug!("Nonce: {}", nonce);
+
+            // Явно освобождаем блокировку перед следующей итерацией
+            drop(blockchain);
+            // Опционально: сделать паузу для снижения нагрузки на CPU
+            // std::thread::sleep(Duration::from_millis(100));
         }
+    }
+
+
+    pub fn get_blockchain(&self)-> Arc<Mutex<Blockchain>> {
+        self.blockchain.clone()
     }
 }

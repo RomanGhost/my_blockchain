@@ -1,5 +1,5 @@
 use std::collections::BinaryHeap;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use log::error;
@@ -7,7 +7,7 @@ use log::error;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
-use crate::coin::node::node_message::{BlockchainMessage, TransactionMessage};
+use crate::coin::node::node_message::TransactionMessage;
 
 pub struct NodeTransaction{
     transaction_queue: BinaryHeap<SerializedTransaction>,
@@ -31,18 +31,25 @@ impl NodeTransaction{
             match self.rx.recv_timeout(Duration::from_secs(1)) {
                 Ok(message) => {
                     match message {
-                        TransactionMessage::AddTransaction(transaction)=>{
+                        TransactionMessage::AddTransaction(transaction) => {
                             self.transaction_queue.push(transaction);
                         }
                         TransactionMessage::GetTransaction() => {
                             let chain = self.get_transactions();
-                            self.external_tx.send(TransactionMessage::TransactionVec(chain)).unwrap();
+                            if chain.len() > 0 {
+                                self.external_tx.send(TransactionMessage::TransactionVec(chain)).unwrap();
+                            }
                         }
                         (_) => ()
                     }
                 },
                 Err(err) => {
-                    error!("Unknown blockchain message type: {}", err);
+                    match err {
+                        RecvTimeoutError=> {}
+                        _ => {
+                            error!("Unknown transaction message type: {}", err);
+                        }
+                    }
                 }
             }
         }
