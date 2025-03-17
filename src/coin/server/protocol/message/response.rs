@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::coin::blockchain::block::Block;
-use crate::coin::blockchain::transaction::SerializedTransaction;
+use crate::coin::node::blockchain::block::Block;
+use crate::coin::node::blockchain::transaction::SerializedTransaction;
 
 // Пример структуры BlockMessage с флагом force
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -1,14 +1,15 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Formatter;
-use serde::{Serialize, Deserialize};
-use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
+
 use base64;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
-use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, PublicKey};
-use sha2::Sha256;
+use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding};
 use rsa::signature::digest::Digest;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
@@ -196,6 +197,7 @@ impl SerializedTransaction {
         let buyer_base64 = buyer_base64.trim().to_string();
 
         SerializedTransaction {
+            //time
             sender: sender_base64,
             buyer: buyer_base64,
             seller: seller_base64,

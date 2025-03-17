@@ -1,78 +1,152 @@
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
-use log::{info, warn, error};
+use std::sync::mpsc::{channel, Sender};
+use std::{io, thread};
+use std::io::Write;
+use std::time::Duration;
+use log::{error, info, warn};
+use sha2::digest::core_api::CoreWrapper;
+use coin::app_state::AppState;
+use crate::coin::node::blockchain::block::Block;
+use crate::coin::node::blockchain::blockchain::Blockchain;
+use crate::coin::node::node_mining::NodeMining;
+use crate::coin::node::node_transaction::NodeTransaction;
+use crate::coin::server::pool;
+use crate::coin::server::pool::connection_pool::ConnectionPool;
+use crate::coin::server::protocol::message::r#type::Message;
+use crate::coin::server::protocol::message::response::{BlockMessage, TextMessage};
+use crate::coin::server::protocol::p2p_protocol::P2PProtocol;
+use crate::coin::server::server::Server;
 
-use crate::app_state::AppState;
-use crate::blockchain_functions::initialize_blockchain;
-use crate::commands::{get_input_text, handle_user_commands};
-use crate::message_thread::message_thread;
-use crate::mining_thread::mining_thread;
-use crate::server_thread::server_thread;
-use env_logger;
-use crate::coin::blockchain::wallet::Wallet;
-
-mod server_thread;
-mod blockchain_functions;
-mod commands;
-mod app_state;
-mod message_thread;
-mod mining_thread;
 mod coin;
 
-fn main() {
-    std::env::set_var("RUST_LOG", "info");
 
+fn initialize_server(mut app_state:AppState) -> (ConnectionPool, P2PProtocol, Server){
+    let timeout = 12;
+
+    let (pool_tx, pool_rx) = channel();
+    let (protocol_tx, protocol_rx) = channel();
+
+    let server = Server::new(pool_tx.clone());
+    let app_state_server = Server::new(pool_tx.clone());
+    app_state.set_server(app_state_server);
+
+    let pool = ConnectionPool::new(timeout, pool_tx.clone(), pool_rx, protocol_tx.clone());
+    let protocol = P2PProtocol::new(app_state, protocol_tx.clone(), protocol_rx, pool_tx.clone());
+
+    (pool, protocol, server)
+}
+
+fn initialise_nodes(mut app_state: &mut AppState, tx_external: Sender<Block>,) -> (NodeTransaction, NodeMining, Arc<Mutex<Blockchain>>) {
+    let(transaction_tx, transaction_rx) = channel();
+
+    let node_transaction = NodeTransaction::new(transaction_tx);
+
+    let mutex_blockchain = Arc::new(Mutex::new(Blockchain::new()));
+    let transaction_tx = node_transaction.get_sender();
+
+    app_state.set_blockchain(transaction_tx.clone(), mutex_blockchain.clone());
+    let node_mining = NodeMining::new(transaction_tx, transaction_rx, tx_external, mutex_blockchain.clone());
+
+    (node_transaction, node_mining,mutex_blockchain)
+}
+
+fn get_input_text(info_text: &str) -> String {
+    print!("{}: ", info_text);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => input.trim().to_string(),
+        Err(e) => {
+            eprintln!("Error reading input: {}", e);
+            String::new()
+        }
+    }
+}
+
+fn command_input(protocol_sender: Sender<Message>){
+    loop {
+        println!("\nДоступные команды:");
+        println!("1. Подключиться к другому серверу (connect <IP>:<port>)");
+        println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
+        println!("3. Выйти (exit)");
+
+        match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
+            ["broadcast", message @ ..] if !message.is_empty() => {
+                let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
+                protocol_sender.send(response_message).unwrap()
+            }
+            ["exit"] => {
+                println!("Выход из программы.");
+                break;
+            },
+            _ => println!("Неверная команда."),
+        }
+    }
+}
+
+fn main() {
+    let is_mining_pool = false;
+    let is_container = false;
+
+    std::env::set_var("RUST_LOG", "debug");
     // // Инициализируем логгер
     env_logger::init();
     //
     // // Пример логгирования сообщений с разным уровнем
     info!("Program run");
 
-    // Инициализация сервера
-    // let address = get_input_text("Введите адрес сервера (например, 127.0.0.1:7878)");
-    let address = String::from("0.0.0.0:7878");
-    let (server_clone, rx_server, server_thread_handle) = server_thread(address);
-    let peer_protocol = server_clone.get_peer_protocol();
+    let mut app_state = AppState::default();
 
-    // Инициализация блокчейна и переменных
-    let (blockchain, queue) = initialize_blockchain();
+    let (tx, rx) = channel();
+    let (mut nt, mut nm, mutex_blockchain) = initialise_nodes(&mut app_state, tx);
+    let (mut cp, mut p2p, mut server) = initialize_server(app_state);
 
-    // Загрузка кошелька
-    let wallet = Wallet::load_from_file("cache/wallet.json");
-    let is_mining = false;
-    // Создание состояния приложения
-    let app_state = AppState {
-        server: server_clone,
-        p2p_protocol: peer_protocol,
-        blockchain: blockchain.clone(),
-        wallet,
-        queue: queue.clone(),
-        running: Arc::new(AtomicBool::new(true)),
-        mining_flag: Arc::new((Mutex::new(is_mining), Condvar::new())), // Управление майнингом
-    };
-    let app_state = Arc::new(app_state);
+    let protocol_sender = p2p.get_sender_protocol();
+    let protocol_sender_thread = p2p.get_sender_protocol();
 
-    // Запуск потока майнинга, если пользователь выбрал эту опцию
-    let mining_thread_handle = if is_mining {
-        Some(mining_thread(app_state.clone()))
-    } else {
-        None
-    };
+    let node_transaction_thread = thread::spawn(move || {
+        nt.run();
+    });
 
-    // Запуск потока для обработки входящих сообщений
-    let message_thread_handle = message_thread(app_state.clone(), rx_server);
-    // app_state.server.connect("localhost", "7878");
+    if is_mining_pool {
+        let node_mining_thread = thread::spawn(move || {
+            nm.run();
+        });
 
-    // Основной цикл: обработка команд пользователя
-    // handle_user_commands(app_state.clone());
-
-    // Ожидание завершения потоков
-    if let Some(mining_handle) = mining_thread_handle {
-        mining_handle.join().unwrap();
+        let block_to_message_thread = thread::spawn(move || {
+            for b in rx.recv() {
+                protocol_sender_thread.send(Message::ResponseBlockMessage(BlockMessage::new(b, false))).unwrap();
+            }
+        });
     }
-    // Остановка программы: изменение флага и ожидание завершения потоков
-    app_state.running.store(false, Ordering::SeqCst);
 
-    message_thread_handle.join().unwrap();
-    server_thread_handle.join().unwrap();
-    info!("Program end");
+    let connection_pool_thread = thread::spawn(move || {
+        cp.run();
+    });
+    let protocol_thread = thread::spawn(move || {
+        p2p.run();
+    });
+
+    //UserNode
+    if !is_container {
+        let server_copy = Server::new(server.get_pool_sender());
+        let server_thread = thread::spawn(move || {
+            server.run("0.0.0.0:7878").expect("Can't run server thread");
+        });
+
+        let server = server_copy;
+
+        server.connect("localhost", 7879).expect("Connect to ");
+        //UserNode
+        command_input(protocol_sender);
+        server_thread.join().unwrap();
+    } else {
+        match std::env::var("ConnectAddr") {
+            Ok(val) => server.connect(val.as_str(), 7878).unwrap(),
+            Err(err) => info!("Error read env: {}", err)
+        }
+        server.run("0.0.0.0:7878").expect("Can't run server thread");
+    }
+    protocol_thread.join().unwrap();
+    connection_pool_thread.join().unwrap();
 }

@@ -1,2 +1,3 @@
 pub mod server;
-pub mod blockchain;
+pub mod node;
+pub mod app_state;

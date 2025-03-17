@@ -1,13 +1,14 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+
+use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD};
+use log::{error, info, warn};
 use rand::rngs::OsRng;
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use serde::{Deserialize, Serialize};
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey};
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey};
-use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
-use log::{info, warn, error};
+use serde::{Deserialize, Serialize};
 
 // Структура кошелька
 pub struct Wallet {

@@ -1,15 +1,12 @@
 use chrono::{DateTime, Utc};
-use log::{info, warn};
 use sha2::{Digest, Sha512};
 
-use crate::coin::blockchain::block::Block;
-use crate::coin::blockchain::transaction::SerializedTransaction;
+use crate::coin::node::blockchain::block::Block;
 
 pub struct Blockchain {
     pub chain: Vec<Block>,
     nonce_iteration: u64,
 }
-
 impl Blockchain {
     pub fn new() -> Blockchain {
         Blockchain {
@@ -20,6 +17,9 @@ impl Blockchain {
 
     pub fn add_block(&mut self, block: Block) -> Result<Block, String> {
         let mut block = block;
+        if !Blockchain::is_valid_block(&block) {
+            return Err("Hash didn't valid".to_string())
+        }
         if let Ok(last_block) = self.get_last_block() {
             if block.get_previous_hash() == last_block.get_hash() {
                 self.chain.push(block.clone());
@@ -59,38 +59,8 @@ impl Blockchain {
         self.chain.len()
     }
 
-    pub fn valid_block(block: &Block) -> bool {
+    pub fn is_valid_block(block: &Block) -> bool {
         block.get_hash().starts_with("000")
-    }
-
-    pub fn proof_of_work(&mut self, transactions: Vec<SerializedTransaction>) -> bool {
-        if let Ok(last_block) = self.get_last_block() {
-            self._proof_of_work(last_block, transactions)
-        } else {
-            warn!("Blockchain is empty, creating the first block.");
-            self.create_first_block();
-            self.proof_of_work(transactions)
-        }
-    }
-
-    fn _proof_of_work(&mut self, last_block: Block, transactions: Vec<SerializedTransaction>) -> bool {
-        let last_block_hash = last_block.get_hash();
-        let block = Block::new(
-            last_block.get_id() + 1,
-            transactions,
-            last_block_hash.clone(),
-            self.nonce_iteration,
-        );
-
-        if Self::valid_block(&block) {
-            info!("Create new block with id: {}", block.get_id());
-            self.chain.push(block);
-            self.nonce_iteration = 0;
-            return true;
-        }
-
-        self.nonce_iteration += 1;
-        false
     }
 
     pub fn get_blocks_after(&self, datetime: DateTime<Utc>) -> Vec<Block> {
@@ -122,7 +92,7 @@ impl Blockchain {
     }
 }
 
-pub fn validate_chain(blockchain: &Vec<Block>, new_chain: &Vec<Block>) -> bool {
+pub fn validate_chain(new_chain: &Vec<Block>) -> bool {
     for i in 1..new_chain.len() {
         let current_block = &new_chain[i];
         let previous_block = &new_chain[i - 1];
@@ -133,7 +103,7 @@ pub fn validate_chain(blockchain: &Vec<Block>, new_chain: &Vec<Block>) -> bool {
         }
 
         // Дополнительная проверка хешей и PoW
-        if !Blockchain::valid_block(current_block) {
+        if !Blockchain::is_valid_block(current_block) {
             return false;
         }
     }
