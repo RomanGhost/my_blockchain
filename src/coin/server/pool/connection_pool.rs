@@ -42,8 +42,6 @@ impl ConnectionPool {
 
     // Добавление нового соединения в пул
     fn add_connection(&mut self, addr: SocketAddr, stream: Arc<Mutex<TcpStream>>) {
-        debug!("Подключен новый пир: {} len: {}", addr, self.connections.len());
-
         self.connections.insert(
             addr,
             PeerConnection {
@@ -53,6 +51,8 @@ impl ConnectionPool {
                 buffer: String::new(),
             },
         );
+        debug!("Подключен новый пир: {} len: {}", addr, self.connections.len());
+
     }
 
     // Удаление соединения из пула
