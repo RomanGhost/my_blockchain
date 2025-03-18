@@ -12,6 +12,8 @@ use crate::coin::server::pool::pool_message::PoolMessage;
 use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::message::r#type::Message::RequestMessageInfo;
 use crate::coin::server::protocol::message::request::MessageFirstInfo;
+use crate::coin::server::protocol::message::response::PeerMessage;
+
 pub struct ConnectionPool {
     connections: HashMap<SocketAddr, PeerConnection>,
     timeout: Duration,
@@ -119,8 +121,14 @@ impl ConnectionPool {
             // Обрабатываем входящие сообщения для пула
             match self.rx.recv_timeout(Duration::from_secs(600)) {
                 Ok(PoolMessage::NewPeer(addr, stream)) => {
+                    debug!("connected new peer, now peers, now pools: {}", self.connections.len());
                     self.add_connection(addr, stream);
                     self.protocol_tx.send(RequestMessageInfo(MessageFirstInfo::new())).unwrap();
+                    let connection_peer_addr = addr.to_string();
+
+                    // Рассылка подключившегося хоста
+                    let message = Message::ResponsePeerMessage(PeerMessage::new(connection_peer_addr));
+                    self.protocol_tx.send(message).unwrap();
                 },
                 Ok(PoolMessage::PeerDisconnected(addr)) => {
                     self.remove_connection(&addr);
@@ -131,7 +139,7 @@ impl ConnectionPool {
                 },
                 Ok(PoolMessage::GetPeers(response_tx)) => {
                     let peers = self.get_peer_addresses();
-                    let _ = response_tx.send(peers); // Игнорируем ошибку, если получатель отключился
+                    response_tx.send(peers).expect("TODO: panic message"); // Игнорируем ошибку, если получатель отключился
                 },
                 Ok(PoolMessage::PeerMessage(addr, message)) => {
                     self.handle_peer_message(addr, message);
@@ -139,7 +147,7 @@ impl ConnectionPool {
                 Err(err) => {
                     warn!("Error timeout pool: {}", err);
                     // Таймаут - чистим неактивные соединения
-                    // self.cleanup_inactive();
+                    self.cleanup_inactive();
                 }
             }
         }

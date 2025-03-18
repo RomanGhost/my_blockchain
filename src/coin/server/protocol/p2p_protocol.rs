@@ -151,11 +151,9 @@ impl P2PProtocol{
     }
 
     fn process_peer(&self, msg:PeerMessage){
-        let peers = msg.get_peers();
-        debug!("New peer");
-        for peer in peers {
-            self.app_state.connect(peer);
-        }
+        let peer = msg.get_peer();
+        info!("New peer");
+        self.app_state.connect(peer);
     }
 
     fn send_first_message(&mut self){

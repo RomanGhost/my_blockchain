@@ -53,12 +53,12 @@ impl Server{
         Ok(())
     }
 
-    pub fn connect(&self, address:&str, port:u16) -> Result<(), Error>{
-        let stream = TcpStream::connect(format!("{}:{}", address, port));
+    pub fn connect(&self, address:String) -> Result<(), Error>{
+        let stream = TcpStream::connect(address.clone());
         match stream {
             Ok(stream) => {
                 if stream.local_addr() ? == stream.peer_addr() ? {
-                    stream.shutdown(Shutdown::Read).expect("Error close input connection");
+                    stream.shutdown(Shutdown::Read).expect("Is same addresses");
                 }
 
                 let stream = stream;
@@ -70,7 +70,7 @@ impl Server{
                 });
             },
             Err(e) => {
-                error!("Error connect to {}:{}, err:{}",address, port, e);
+                error!("Error connect to {}, err:{}",address, e);
             }
         }
         Ok(())

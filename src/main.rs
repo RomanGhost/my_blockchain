@@ -165,13 +165,13 @@ fn main() {
 
         let server = server_copy;
 
-        server.connect("localhost", 7879).expect("Connect to ");
+        server.connect(format!("localhost:{}", 7879)).expect("Connect to ");
         //UserNode
         command_input(protocol_sender);
         server_thread.join().unwrap();
     } else {
         match std::env::var("ConnectAddr") {
-            Ok(val) => server.connect(val.as_str(), 7878).unwrap(),
+            Ok(val) => server.connect(format!("{}:7878", val)).unwrap(),
             Err(err) => info!("Error read env: {}", err)
         }
         server.run("0.0.0.0:7878").expect("Can't run server thread");

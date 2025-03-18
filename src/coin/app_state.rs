@@ -66,7 +66,7 @@ impl AppState {
     }
 
     pub fn connect(&self, addr:String){
-        self.server.connect(addr.as_str(), 7878).unwrap();
+        self.server.connect(format!("{}:7878", addr)).unwrap();
     }
 
 
