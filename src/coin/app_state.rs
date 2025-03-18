@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 
 use chrono::{DateTime, Utc};
-
+use log::debug;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::{Blockchain, validate_chain};
 use crate::coin::node::blockchain::transaction::SerializedTransaction;
@@ -66,6 +66,7 @@ impl AppState {
     }
 
     pub fn connect(&self, addr:String){
+        debug!("send request to server for connect: {}, addr");
         self.server.connect(format!("{}:7878", addr)).unwrap();
     }
 
