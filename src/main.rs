@@ -8,12 +8,14 @@ use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
+use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
+use crate::coin::node::blockchain::wallet::Wallet;
 use crate::coin::node::node_mining::NodeMining;
 use crate::coin::node::node_transaction::NodeTransaction;
 use crate::coin::server::pool;
 use crate::coin::server::pool::connection_pool::ConnectionPool;
 use crate::coin::server::protocol::message::r#type::Message;
-use crate::coin::server::protocol::message::response::{BlockMessage, TextMessage};
+use crate::coin::server::protocol::message::response::{BlockMessage, TextMessage, TransactionMessage};
 use crate::coin::server::protocol::p2p_protocol::P2PProtocol;
 use crate::coin::server::server::Server;
 
@@ -66,14 +68,39 @@ fn get_input_text(info_text: &str) -> String {
 fn command_input(protocol_sender: Sender<Message>){
     loop {
         println!("\nДоступные команды:");
-        println!("1. Подключиться к другому серверу (connect <IP>:<port>)");
-        println!("2. Вещать сообщение всем пирами (broadcast <сообщение>)");
-        println!("3. Выйти (exit)");
+        println!("- Подключиться к другому серверу (connect <IP>:<port>)");
+        println!("- Вещать сообщение всем пирами (broadcast <сообщение>)");
+        println!("- Создать транзакцию (transaction)");
+        println!("- Выйти (exit)");
 
         match get_input_text("Введите команду").split_whitespace().collect::<Vec<&str>>().as_slice() {
             ["broadcast", message @ ..] if !message.is_empty() => {
                 let response_message = Message::ResponseTextMessage(TextMessage::new(message.join(" ")));
                 protocol_sender.send(response_message).unwrap()
+            }
+            ["transaction", message @ ..] if !message.is_empty() => {
+                let message = message.join(" ");
+                let wallet = Wallet::new();
+                let sender_key = wallet.get_public_key_string();
+
+                let mut response_transaction =
+                    SerializedTransaction::new(sender_key.clone(), message, sender_key.clone(), sender_key.clone(), 12.0);
+
+                // let mut signed_transaction = response_transaction.clone();
+                // let transaction = Transaction::deserialize(response_transaction);
+                //
+                // match transaction {
+                //     Ok(mut transaction) => {
+                //         transaction.sign(wallet.get_private_key());
+                //         signed_transaction = transaction.serialize();
+                //     }
+                //     Err(e) => {
+                //         warn!("{}", e);
+                //     }
+                // }
+                // println!("Подпись создана");
+                let response_message = Message::ResponseTransactionMessage(TransactionMessage::new(response_transaction));
+                protocol_sender.send(response_message).unwrap();
             }
             ["exit"] => {
                 println!("Выход из программы.");
