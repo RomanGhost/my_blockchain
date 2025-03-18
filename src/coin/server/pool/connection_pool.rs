@@ -42,7 +42,7 @@ impl ConnectionPool {
 
     // Добавление нового соединения в пул
     fn add_connection(&mut self, addr: SocketAddr, stream: Arc<Mutex<TcpStream>>) {
-        debug!("Подключен новый пир: {}", addr);
+        debug!("Подключен новый пир: {} len: {}", addr, self.connections.len());
 
         self.connections.insert(
             addr,
@@ -121,10 +121,10 @@ impl ConnectionPool {
             // Обрабатываем входящие сообщения для пула
             match self.rx.recv_timeout(Duration::from_secs(600)) {
                 Ok(PoolMessage::NewPeer(addr, stream)) => {
-                    debug!("connected new peer, now peers, now pools: {}", self.connections.len());
+                    // debug!("connected new peer, now peers: {}", self.connections.len());
                     self.add_connection(addr, stream);
                     self.protocol_tx.send(RequestMessageInfo(MessageFirstInfo::new())).unwrap();
-                    let connection_peer_addr = addr.to_string();
+                    let connection_peer_addr = addr.ip().to_string();
 
                     // Рассылка подключившегося хоста
                     let message = Message::ResponsePeerMessage(PeerMessage::new(connection_peer_addr));
