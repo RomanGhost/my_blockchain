@@ -123,12 +123,8 @@ impl ConnectionPool {
                 Ok(PoolMessage::NewPeer(addr, stream)) => {
                     // debug!("connected new peer, now peers: {}", self.connections.len());
                     self.add_connection(addr, stream);
+                    self.protocol_tx.send(Message::ResponsePeerMessage(PeerMessage::new(addr.ip().to_string()))).unwrap();
                     self.protocol_tx.send(RequestMessageInfo(MessageFirstInfo::new())).unwrap();
-                    let connection_peer_addr = addr.ip().to_string();
-
-                    // Рассылка подключившегося хоста
-                    let message = Message::ResponsePeerMessage(PeerMessage::new(connection_peer_addr));
-                    self.protocol_tx.send(message).unwrap();
                 },
                 Ok(PoolMessage::PeerDisconnected(addr)) => {
                     self.remove_connection(&addr);
