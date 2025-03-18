@@ -41,12 +41,16 @@ impl AppState {
         if is_force{
             self.blockchain.lock().unwrap().add_force_block(block);
         }else {
-            self.blockchain.lock().unwrap().add_block(block).unwrap();
+            self.blockchain.lock().unwrap().add_block(block).expect("Error add block to chain");
         }
     }
 
     pub fn check_chain(&self, chain:Vec<Block>){
         validate_chain(&chain);
+    }
+
+    pub fn get_from_first_block(&self) -> Vec<Block> {
+        self.blockchain.lock().expect("Error lock blockchain node").get_full_chain()
     }
 
     pub fn get_last_n_blocks(&self, n:usize)-> Vec<Block>{

@@ -3,7 +3,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::{io, thread};
 use std::io::Write;
 use std::time::Duration;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
 use crate::coin::node::blockchain::block::Block;
@@ -141,7 +141,9 @@ fn main() {
         });
 
         let block_to_message_thread = thread::spawn(move || {
+
             for b in rx.recv() {
+                debug!("Get new block, send to transfer block: {:?}", b);
                 protocol_sender_thread.send(Message::ResponseBlockMessage(BlockMessage::new(b, false))).unwrap();
             }
         });

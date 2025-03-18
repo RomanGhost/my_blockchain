@@ -116,9 +116,10 @@ impl NodeMining {
             if Blockchain::is_valid_block(&new_block) {
                 debug!("New block found with nonce: {}", nonce);
                 // Пытаемся добавить блок
-                if let Err(e) = blockchain.add_block(new_block) {
+                if let Err(e) = blockchain.add_block(new_block.clone()) {
                     error!("Failed to add valid block: {}", e);
                 }
+                self.tx_external.send(new_block).unwrap();
                 break;
             } else {
                 nonce += 1;

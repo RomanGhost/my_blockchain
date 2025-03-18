@@ -79,6 +79,10 @@ impl Blockchain {
             .collect()
     }
 
+    pub fn get_full_chain(&self) -> Vec<Block>{
+        self.chain.clone()
+    }
+
     pub fn get_last_n_blocks(&self, n: usize) -> Vec<Block> {
         self.chain
             .iter()

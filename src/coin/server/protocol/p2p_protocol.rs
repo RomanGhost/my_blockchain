@@ -71,6 +71,7 @@ impl P2PProtocol{
         }
     }
 
+    /// Входящие сообщения
     fn process_message(&mut self, message: Message){
         match message{
             Message::RequestMessageInfo(_) => {
@@ -166,6 +167,9 @@ impl P2PProtocol{
         let json_message = response_message.to_json();
         let broadcast_message = BroadcastMessage(json_message);
         self.pool_tx.send(broadcast_message).unwrap();
+
+        let chain = self.app_state.get_from_first_block();//TODO обработка ошибки
+        self.send_chain(chain)
     }
 
     fn send_last_n_locks(&mut self, msg:LastNBlocksMessage){
