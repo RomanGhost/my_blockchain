@@ -141,7 +141,7 @@ impl P2PProtocol{
     fn process_transaction(&self, msg:TransactionMessage) {
         let new_transaction = msg.get_transaction();
         debug!("Get new transaction");
-        self.app_state.add_transaction(new_transaction); //TODO(обработать ошибки)
+        self.app_state.add_transaction(new_transaction)
     }
 
     fn process_chain(&self, msg:ChainMessage) {

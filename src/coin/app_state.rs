@@ -62,7 +62,7 @@ impl AppState {
     }
 
     pub fn add_transaction(&self, transaction:SerializedTransaction){
-        self.transaction_tx.send(TransactionMessage::AddTransaction(transaction)).unwrap();
+        self.transaction_tx.send(TransactionMessage::AddTransaction(transaction)).expect("send transaction to channel");
     }
 
     pub fn connect(&self, addr:String){
