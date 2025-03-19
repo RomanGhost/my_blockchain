@@ -84,22 +84,22 @@ fn command_input(protocol_sender: Sender<Message>){
                 let sender_key = wallet.get_public_key_string();
 
                 let mut response_transaction =
-                    SerializedTransaction::new(sender_key.clone(), message, sender_key.clone(), sender_key.clone(), 12.0);
+                    SerializedTransaction::new(sender_key.clone(), sender_key.clone(), sender_key.clone(), message, 12.0);
 
-                // let mut signed_transaction = response_transaction.clone();
-                // let transaction = Transaction::deserialize(response_transaction);
-                //
-                // match transaction {
-                //     Ok(mut transaction) => {
-                //         transaction.sign(wallet.get_private_key());
-                //         signed_transaction = transaction.serialize();
-                //     }
-                //     Err(e) => {
-                //         warn!("{}", e);
-                //     }
-                // }
-                // println!("Подпись создана");
-                let response_message = Message::ResponseTransactionMessage(TransactionMessage::new(response_transaction));
+                let mut signed_transaction = response_transaction.clone();
+                let transaction = Transaction::deserialize(response_transaction);
+
+                match transaction {
+                    Ok(mut transaction) => {
+                        transaction.sign(wallet.get_private_key());
+                        signed_transaction = transaction.serialize();
+                    }
+                    Err(e) => {
+                        warn!("{}", e);
+                    }
+                }
+                println!("Подпись создана");
+                let response_message = Message::ResponseTransactionMessage(TransactionMessage::new(signed_transaction));
                 protocol_sender.send(response_message).unwrap();
             }
             ["exit"] => {
