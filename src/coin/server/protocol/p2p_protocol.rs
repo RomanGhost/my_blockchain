@@ -1,6 +1,6 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Duration;
-
+use chrono::{TimeZone, Utc};
 use log::{debug, error, info, warn};
 
 use crate::coin::app_state::AppState;
@@ -178,9 +178,10 @@ impl P2PProtocol{
     }
 
     fn send_block_before(&mut self, msg:BlocksBeforeMessage){
-        let date_time = msg.get_time();
+        let date_time_unix = msg.get_time();
+        let datetime = Utc.timestamp_opt(date_time_unix, 0).unwrap();
         debug!("Get block before");
-        let chain = self.app_state.get_block_before(date_time); //TODO обработка ошибки
+        let chain = self.app_state.get_block_before(datetime); //TODO обработка ошибки
         self.send_chain(chain);
     }
 

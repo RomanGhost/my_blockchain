@@ -9,7 +9,7 @@ use crate::coin::node::blockchain::transaction::SerializedTransaction;
 pub struct BlockMessage {
     id: u64,
     block: Block,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
     force: bool,
 }
 
@@ -18,7 +18,7 @@ impl BlockMessage {
         BlockMessage {
             id: 0,
             block,
-            time_stamp: Utc::now(),
+            time_stamp: Utc::now().timestamp(),
             force,
         }
     }
@@ -45,7 +45,7 @@ impl BlockMessage {
 pub struct TransactionMessage {
     id: u64,
     transaction: SerializedTransaction,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
 }
 
 impl TransactionMessage {
@@ -53,7 +53,7 @@ impl TransactionMessage {
         TransactionMessage {
             id: 0,
             transaction,
-            time_stamp: Utc::now(),
+            time_stamp: Utc::now().timestamp(),
         }
     }
 
@@ -75,7 +75,7 @@ impl TransactionMessage {
 pub struct TextMessage {
     id: u64,
     message: String,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
 }
 
 impl TextMessage {
@@ -83,7 +83,7 @@ impl TextMessage {
         TextMessage {
             id: 0,
             message,
-            time_stamp: Utc::now(),
+            time_stamp: Utc::now().timestamp(),
         }
     }
 
@@ -103,12 +103,12 @@ impl TextMessage {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageAnswerFirstInfo {
     id: u64,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
 }
 
 impl MessageAnswerFirstInfo {
     pub fn new() -> MessageAnswerFirstInfo {
-        MessageAnswerFirstInfo{ id: 0, time_stamp: Utc::now(),}
+        MessageAnswerFirstInfo{ id: 0, time_stamp: Utc::now().timestamp(),}
     }
 
     pub fn get_id(&self) -> u64 {
@@ -124,12 +124,12 @@ impl MessageAnswerFirstInfo {
 pub struct ChainMessage {
     id: u64,
     chain: Vec<Block>,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
 }
 
 impl ChainMessage {
     pub fn new(chain: Vec<Block>) -> ChainMessage {
-        ChainMessage { id: 0, chain, time_stamp: Utc::now(), }
+        ChainMessage { id: 0, chain, time_stamp: Utc::now().timestamp(), }
     }
 
     pub fn get_id(&self) -> u64 {
@@ -149,13 +149,13 @@ impl ChainMessage {
 pub struct PeerMessage {
     id: u64,
     peer_address: String,
-    time_stamp: DateTime<Utc>,
+    time_stamp: i64,
 }
 
 /// Format ip:port
 impl PeerMessage {
     pub fn new(peer_address: String) -> PeerMessage {
-        PeerMessage { id: 0, peer_address, time_stamp: Utc::now(), }
+        PeerMessage { id: 0, peer_address, time_stamp: Utc::now().timestamp() }
     }
 
     pub fn get_id(&self) -> u64 {
