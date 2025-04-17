@@ -239,3 +239,99 @@ impl PartialOrd for SerializedTransaction {
         Some(self.cmp(other))
     }
 }
+
+
+
+
+#[cfg(test)]
+mod transactionTests {
+    use base64::Engine;
+    use super::*;
+    use rand::rngs::OsRng;
+    use rsa::{RsaPrivateKey, pkcs1::EncodeRsaPublicKey, RsaPublicKey};
+
+    fn generate_keys() -> (RsaPrivateKey, RsaPublicKey) {
+        let mut rng = OsRng;
+        let private_key = RsaPrivateKey::new(&mut rng, 2048).expect("не удалось сгенерировать ключ");
+        let public_key = private_key.to_public_key();
+        (private_key, public_key)
+    }
+
+    #[test]
+    fn test_transaction_sign_and_verify() {
+        let (sender_priv, sender_pub) = generate_keys();
+        let (_, buyer_pub) = generate_keys();
+        let (_, seller_pub) = generate_keys();
+
+        let sender_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(sender_pub.to_pkcs1_der().unwrap());
+        let buyer_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(buyer_pub.to_pkcs1_der().unwrap());
+        let seller_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(seller_pub.to_pkcs1_der().unwrap());
+
+        let mut tx = Transaction::new(sender_b64, seller_b64, buyer_b64, "Test Message".to_string(), 42.0);
+        tx.sign(sender_priv.clone());
+
+        assert!(tx.verify(), "Подпись не прошла проверку!");
+    }
+
+    #[test]
+    fn test_serialize_deserialize() {
+        let (sender_priv, sender_pub) = generate_keys();
+        let (_, buyer_pub) = generate_keys();
+        let (_, seller_pub) = generate_keys();
+
+        let sender_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(sender_pub.to_pkcs1_der().unwrap());
+        let buyer_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(buyer_pub.to_pkcs1_der().unwrap());
+        let seller_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(seller_pub.to_pkcs1_der().unwrap());
+
+        let mut tx = Transaction::new(sender_b64.clone(), seller_b64.clone(), buyer_b64.clone(), "Hello".to_string(), 100.0);
+        tx.sign(sender_priv);
+
+        let json = tx.to_json();
+        let deserialized = Transaction::from_json(&json).unwrap();
+
+        assert_eq!(deserialized.get_message(), "Hello");
+        assert_eq!(deserialized.get_transfer(), 100.0);
+        assert!(deserialized.verify());
+    }
+
+    #[test]
+    fn test_transaction_ordering() {
+        let tx1 = SerializedTransaction::new("sender".into(), "seller".into(), "buyer".into(), "msg".into(), 50.0);
+        let tx2 = SerializedTransaction::new("sender".into(), "seller".into(), "buyer".into(), "msg".into(), 100.0);
+
+        assert!(tx1 < tx2);
+        assert!(tx2 > tx1);
+    }
+
+    #[test]
+    fn test_transaction_display() {
+        let (_, pub_key) = generate_keys();
+        let key_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(pub_key.to_pkcs1_der().unwrap());
+
+        let mut tx = Transaction::new(key_b64.clone(), key_b64.clone(), key_b64.clone(), "Display test".to_string(), 12.0);
+        let display_output = format!("{}", tx);
+
+        assert!(display_output.contains("Display test"));
+    }
+
+    #[test]
+    fn test_transaction_json_roundtrip() {
+        let (sender_priv, sender_pub) = generate_keys();
+        let (_, buyer_pub) = generate_keys();
+        let (_, seller_pub) = generate_keys();
+
+        let sender_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(sender_pub.to_pkcs1_der().unwrap());
+        let buyer_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(buyer_pub.to_pkcs1_der().unwrap());
+        let seller_b64 = base64::engine::general_purpose::STANDARD_NO_PAD.encode(seller_pub.to_pkcs1_der().unwrap());
+
+        let mut tx = Transaction::new(sender_b64.clone(), seller_b64.clone(), buyer_b64.clone(), "JSON Test".to_string(), 77.7);
+        tx.sign(sender_priv);
+
+        let json = tx.to_json();
+        let restored = Transaction::from_json(&json).unwrap();
+
+        assert_eq!(tx.get_transfer(), restored.get_transfer());
+        assert_eq!(tx.get_message(), restored.get_message());
+        assert!(restored.verify());
+    }
+}

@@ -69,6 +69,4 @@ impl AppState {
         debug!("send request to server for connect: {}", addr);
         self.server.connect(format!("{}:7878", addr)).unwrap();
     }
-
-
 }

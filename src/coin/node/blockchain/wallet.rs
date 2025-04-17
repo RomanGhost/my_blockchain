@@ -202,3 +202,91 @@ struct SerializedWallet {
     private_key: String,   // Приватный ключ в формате Base64
     amount: f64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{remove_file};
+    use std::path::PathBuf;
+    use std::env;
+
+    /// Тест создания нового кошелька.
+    #[test]
+    fn test_wallet_creation() {
+        let wallet = Wallet::new();
+        // После создания баланс должен быть равен 0
+        assert_eq!(wallet.get_amount(), 0f64);
+        // Строковые представления ключей не должны быть пустыми.
+        let public_key_str = wallet.get_public_key_string();
+        let private_key_str = wallet.get_private_key_string();
+        assert!(!public_key_str.is_empty());
+        assert!(!private_key_str.is_empty());
+    }
+
+    /// Тест сериализации и десериализации кошелька через JSON.
+    #[test]
+    fn test_wallet_serialization_deserialization() {
+        let mut wallet = Wallet::new();
+        wallet.set_amount(150.0);
+        let public_key_before = wallet.get_public_key_string();
+        let private_key_before = wallet.get_private_key_string();
+
+        let json_str = wallet.to_json();
+        let deserialized_wallet = Wallet::from_json(&json_str);
+
+        // Сравнение баланса
+        assert_eq!(wallet.get_amount(), deserialized_wallet.get_amount());
+        // Сравнение строковых представлений ключей
+        assert_eq!(public_key_before, deserialized_wallet.get_public_key_string());
+        assert_eq!(private_key_before, deserialized_wallet.get_private_key_string());
+    }
+
+    /// Тест корректного обновления баланса кошелька.
+    #[test]
+    fn test_set_amount() {
+        let mut wallet = Wallet::new();
+        wallet.set_amount(200.0);
+        assert_eq!(wallet.get_amount(), 200.0);
+    }
+
+    /// Тест установки отрицательного баланса (ожидается паника).
+    #[test]
+    #[should_panic(expected = "Balance cannot be negative")]
+    fn test_set_negative_amount() {
+        let mut wallet = Wallet::new();
+        wallet.set_amount(-50.0);
+    }
+
+    /// Тест сохранения кошелька в файл и последующей загрузки.
+    #[test]
+    fn test_save_and_load_from_file() {
+        // Определяем временный файл в директории tmp
+        let mut temp_path = env::temp_dir();
+        temp_path.push("test_wallet.json");
+        let file_path = temp_path.to_str().unwrap();
+
+        // Удаляем файл, если он существует, для чистоты теста.
+        if PathBuf::from(file_path).exists() {
+            remove_file(file_path).unwrap();
+        }
+
+        // Создаём кошелёк и устанавливаем баланс
+        let mut wallet = Wallet::new();
+        wallet.set_amount(500.0);
+        // Сохраняем кошелёк
+        wallet.save_to_file(file_path);
+        // Загружаем кошелёк из файла
+        let loaded_wallet = Wallet::load_from_file(file_path);
+
+        // Сравниваем баланс
+        assert_eq!(wallet.get_amount(), loaded_wallet.get_amount());
+        // Сравниваем публичные ключи
+        assert_eq!(wallet.get_public_key_string(), loaded_wallet.get_public_key_string());
+        // Сравниваем приватные ключи
+        assert_eq!(wallet.get_private_key_string(), loaded_wallet.get_private_key_string());
+
+        // Чистим временный файл
+        remove_file(file_path).unwrap();
+    }
+}
+

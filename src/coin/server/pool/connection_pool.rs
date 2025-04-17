@@ -184,3 +184,152 @@ impl ConnectionPool {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::io::Read;
+    use super::*;
+    use std::net::{TcpListener, TcpStream, SocketAddr};
+    use std::sync::{Arc, Mutex, mpsc};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    /// Хелпер для создания пары подключённого TcpStream и регистрации
+    /// серверной стороны в пуле.
+    fn setup_connection(pool: &mut ConnectionPool, addr: &mut SocketAddr) -> TcpStream {
+        // Листенер на случайном порту
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind failed");
+        *addr = listener.local_addr().unwrap();
+
+        // Стрим клиента
+        let client = TcpStream::connect(*addr).expect("connect failed");
+        // Принимаем на стороне сервера
+        let (server, _) = listener.accept().expect("accept failed");
+
+        // Регистрируем в пуле
+        pool.add_connection(*addr, Arc::new(Mutex::new(server)));
+        client
+    }
+
+    #[test]
+    fn test_add_connection_and_get_peer_addresses() {
+        let (tx_pool, rx_pool) = mpsc::channel();
+        let (tx_proto, _rx_proto) = mpsc::channel();
+        let mut pool = ConnectionPool::new(10, tx_pool, rx_pool, tx_proto);
+
+        let mut addr = "127.0.0.1:0".parse().unwrap();
+        let _client = setup_connection(&mut pool, &mut addr);
+
+        let peers = pool.get_peer_addresses();
+        assert_eq!(peers, vec![addr]);
+    }
+
+    #[test]
+    fn test_send_to_peer() {
+        use std::io::{BufRead, BufReader};
+
+        let (tx_pool, rx_pool) = mpsc::channel();
+        let (tx_proto, _rx_proto) = mpsc::channel();
+        let mut pool = ConnectionPool::new(10, tx_pool, rx_pool, tx_proto);
+
+        // Настраиваем соединение
+        let mut addr = "127.0.0.1:0".parse().unwrap();
+        let client = setup_connection(&mut pool, &mut addr);
+
+        // Отправляем сообщение
+        pool.send_to_peer(&addr, "hello").expect("send_to_peer failed");
+
+        // Читаем ровно одну строку (до '\n')
+        let mut reader = BufReader::new(client);
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read_line failed");
+
+        assert_eq!(line, "hello\n");
+    }
+
+
+    #[test]
+    fn test_broadcast_and_remove_failed_peer() {
+        use std::thread;
+
+        let (tx_pool, rx_pool) = mpsc::channel();
+        let (tx_proto, _rx_proto) = mpsc::channel();
+        let mut pool = ConnectionPool::new(10, tx_pool, rx_pool, tx_proto);
+
+        // 1) Настраиваем рабочее соединение
+        let mut addr1 = "127.0.0.1:0".parse().unwrap();
+        let _good_client = setup_connection(&mut pool, &mut addr1);
+
+        // 2) Настраиваем «сломанное» соединение через Poisoned Mutex:
+        //    - создаём listener
+        //    - коннектимся клиентом/сервером
+        //    - после accept() получаем серверный stream
+        //    - оборачиваем его в Arc<Mutex<_>>
+        //    - сразу же в отдельном потоке паника при захвате lock, вызывая PoisonError
+        let listener2 = TcpListener::bind("127.0.0.1:0").unwrap();
+        let bad_addr = listener2.local_addr().unwrap();
+        let _bad_client = TcpStream::connect(bad_addr).unwrap();
+        let (bad_server, _) = listener2.accept().unwrap();
+
+        let m = Arc::new(Mutex::new(bad_server));
+        // Poison the mutex
+        {
+            let m_clone = Arc::clone(&m);
+            let _ = thread::spawn(move || {
+                let _guard = m_clone.lock().unwrap();
+                panic!("poisoning mutex");
+            }).join();
+        }
+        // Теперь Mutex в состоянии PoisonError
+        pool.add_connection(bad_addr, m);
+
+        // 3) Широковещаем — для "сломанного" peers lock() даст Err, и он удалится
+        pool.broadcast("ping");
+
+        // 4) Остаётся только рабочий addr1
+        let peers = pool.get_peer_addresses();
+        assert_eq!(peers, vec![addr1]);
+    }
+
+
+
+    #[test]
+    fn test_cleanup_inactive() {
+        // timeout = 0, чтобы сразу считать всех неактивными
+        let (tx_pool, rx_pool) = mpsc::channel();
+        let (tx_proto, _rx_proto) = mpsc::channel();
+        let mut pool = ConnectionPool::new(0, tx_pool, rx_pool, tx_proto);
+
+        let mut addr = "127.0.0.1:0".parse().unwrap();
+        let _client = setup_connection(&mut pool, &mut addr);
+
+        // сразу удаляем «неактивных»
+        pool.cleanup_inactive();
+        assert!(pool.get_peer_addresses().is_empty());
+    }
+
+    #[test]
+    fn test_handle_peer_message_and_protocol_forwarding() {
+        let (tx_pool, rx_pool) = mpsc::channel();
+        let (tx_proto, rx_proto) = mpsc::channel();
+        let mut pool = ConnectionPool::new(10, tx_pool, rx_pool, tx_proto);
+
+        let mut addr = "127.0.0.1:0".parse().unwrap();
+        let _client = setup_connection(&mut pool, &mut addr);
+
+        // отправляем часть и полный, проверяем делим на сообщения
+        pool.handle_peer_message(addr, "msg1\nmsg2\npartial".to_string());
+        // теперь буфер для addr содержит "partial"
+        pool.handle_peer_message(addr, "1\n".to_string());
+
+        // Должны получить 3 RawMessage: "msg1", "msg2", "partial1"
+        let mut collected = Vec::new();
+        for _ in 0..3 {
+            if let Ok(Message::RawMessage(m)) = rx_proto.recv_timeout(Duration::from_secs(1)) {
+                collected.push(m);
+            }
+        }
+        assert_eq!(collected, vec!["msg1", "msg2", "partial1"]);
+    }
+}
