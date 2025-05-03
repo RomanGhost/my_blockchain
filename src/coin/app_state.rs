@@ -57,7 +57,7 @@ impl AppState {
         self.blockchain.lock().expect("Error lock blockchain node").get_last_n_blocks(n)
     }
 
-    pub fn get_block_before(&self, date_time:DateTime<Utc>) -> Vec<Block>{
+    pub fn get_block_before(&self, date_time:i64) -> Vec<Block>{
         self.blockchain.lock().expect("Error lock blockchain node").get_blocks_before(date_time)
     }
 

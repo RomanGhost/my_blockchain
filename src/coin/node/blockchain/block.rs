@@ -10,7 +10,7 @@ use crate::coin::node::blockchain::transaction::SerializedTransaction;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block{
     id:usize,
-    time_create: DateTime<Utc>,
+    time_create: i64,
     transactions: Vec<SerializedTransaction>,
     previous_hash: String,
     nonce: u64
@@ -22,7 +22,7 @@ impl Block{
         previous_hash:String,
         nonce:u64
     ) -> Block{
-        Block{ id, time_create: Utc::now(), transactions, previous_hash, nonce}
+        Block{ id, time_create: Utc::now().timestamp(), transactions, previous_hash, nonce}
     }
 
     pub fn get_hash(&self) ->String{
@@ -50,7 +50,7 @@ impl Block{
         self.id
     }
 
-    pub fn get_datetime(&self) -> DateTime<Utc> {
+    pub fn get_datetime(&self) -> i64 {
         self.time_create
     }
 

@@ -63,7 +63,7 @@ impl Blockchain {
         block.get_hash().starts_with("000")
     }
 
-    pub fn get_blocks_after(&self, datetime: DateTime<Utc>) -> Vec<Block> {
+    pub fn get_blocks_after(&self, datetime: i64) -> Vec<Block> {
         self.chain
             .iter()
             .filter(|block| datetime < block.get_datetime())
@@ -71,7 +71,7 @@ impl Blockchain {
             .collect()
     }
 
-    pub fn get_blocks_before(&self, datetime: DateTime<Utc>) -> Vec<Block> {
+    pub fn get_blocks_before(&self, datetime: i64) -> Vec<Block> {
         self.chain
             .iter()
             .filter(|block| datetime > block.get_datetime())

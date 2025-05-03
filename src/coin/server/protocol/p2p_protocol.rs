@@ -181,7 +181,7 @@ impl P2PProtocol{
         let date_time_unix = msg.get_time();
         let datetime = Utc.timestamp_opt(date_time_unix, 0).unwrap();
         debug!("Get block before");
-        let chain = self.app_state.get_block_before(datetime); //TODO обработка ошибки
+        let chain = self.app_state.get_block_before(datetime.timestamp()); //TODO обработка ошибки
         self.send_chain(chain);
     }
 
