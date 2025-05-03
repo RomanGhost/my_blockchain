@@ -6,6 +6,7 @@ use std::time::Duration;
 use log::{debug, error, info, warn};
 use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
+use crate::coin::db::BlockDatabase;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
@@ -122,7 +123,10 @@ fn main() {
     // // Пример логгирования сообщений с разным уровнем
     info!("Program run");
 
-    let mut app_state = AppState::default();
+    //initialize db
+    let db = BlockDatabase::new("chain.db").expect("problem with init db");
+
+    let mut app_state = AppState::new(db);
 
     let (tx, rx) = channel();
     let (mut nt, mut nm, mutex_blockchain) = initialise_nodes(&mut app_state, tx);

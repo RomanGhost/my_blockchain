@@ -25,6 +25,16 @@ impl Block{
         Block{ id, time_create: Utc::now().timestamp(), transactions, previous_hash, nonce}
     }
 
+    pub fn force_new(
+         id:usize,
+         time_create: i64,
+         transactions: Vec<SerializedTransaction>,
+         previous_hash:String,
+         nonce:u64
+    ) -> Block{
+        Block{ id, time_create, transactions, previous_hash, nonce}
+    }
+
     pub fn get_hash(&self) ->String{
         let mut hasher = Sha512::new();
         hasher.update(format!("{}_{:?}_{}/{}", self.id, self.transactions, self.previous_hash, self.nonce ));

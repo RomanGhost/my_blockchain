@@ -3,6 +3,7 @@ use std::sync::mpsc::{channel, Sender};
 
 use chrono::{DateTime, Utc};
 use log::debug;
+use crate::coin::db::BlockDatabase;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::{Blockchain, validate_chain};
 use crate::coin::node::blockchain::transaction::SerializedTransaction;
@@ -13,16 +14,17 @@ pub struct AppState {
     server: Server,
     transaction_tx: Sender<TransactionMessage>,
     blockchain: Arc<Mutex<Blockchain>>,
-
+    database: Arc<Mutex<BlockDatabase>>,
 }
 
 impl AppState {
 
-    pub fn default() -> Self {
+    pub fn new(database: BlockDatabase) -> Self {
         AppState {
-            server: Server::new(channel().0), // или используйте свой конструктор
+            server: Server::new(channel().0),
             transaction_tx: channel().0,
             blockchain: Arc::new(Mutex::new(Blockchain::new())),
+            database: Arc::new(Mutex::new(database))
         }
     }
     pub fn set_server(&mut self, server: Server) {
@@ -38,6 +40,7 @@ impl AppState {
     }
 
     pub fn add_block(&self, block:Block, is_force:bool){
+        self.database.lock().expect("error access to mutex db").insert_block(&block).unwrap();
         if is_force{
             self.blockchain.lock().unwrap().add_force_block(block);
         }else {
