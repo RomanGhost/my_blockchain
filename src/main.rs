@@ -1,20 +1,17 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 use std::{io, thread};
 use std::io::Write;
-use std::time::Duration;
+use std::sync::mpmc::RecvError;
 use log::{debug, error, info, warn};
-use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
 use crate::coin::db::BlockDatabase;
-use crate::coin::node::blockchain::block;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
 use crate::coin::node::blockchain::wallet::Wallet;
 use crate::coin::node::node_mining::NodeMining;
 use crate::coin::node::node_transaction::NodeTransaction;
-use crate::coin::server::pool;
 use crate::coin::server::pool::connection_pool::ConnectionPool;
 use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::message::response::{BlockMessage, TextMessage, TransactionMessage};
@@ -40,7 +37,7 @@ fn initialize_server(mut app_state:AppState) -> (ConnectionPool, P2PProtocol, Se
     (pool, protocol, server)
 }
 
-fn initialise_nodes(mut app_state: &mut AppState, tx_external: Sender<Block>,) -> (NodeTransaction, NodeMining, Arc<Mutex<Blockchain>>) {
+fn initialise_nodes(app_state: &mut AppState, tx_external: Sender<Block>,) -> (NodeTransaction, NodeMining, Arc<Mutex<Blockchain>>) {
     let(transaction_tx, transaction_rx) = channel();
 
     let node_transaction = NodeTransaction::new(transaction_tx);
@@ -85,7 +82,7 @@ fn command_input(protocol_sender: Sender<Message>){
                 let wallet = Wallet::new();
                 let sender_key = wallet.get_public_key_string();
 
-                let mut response_transaction =
+                let response_transaction =
                     SerializedTransaction::new(sender_key.clone(), sender_key.clone(), sender_key.clone(), message, 12.0);
 
                 let mut signed_transaction = response_transaction.clone();
@@ -124,6 +121,7 @@ fn main() {
     info!("Program run");
     // initialize database
     let database = BlockDatabase::new("test.db").expect("error open file db");
+    //TODO "Поправить нейминг"
     let mutexDatabase = Arc::new(Mutex::new(database));
     let mutexDatabaseThread = mutexDatabase.clone();
     let mut app_state = AppState::new(mutexDatabase);
@@ -140,19 +138,40 @@ fn main() {
     });
 
     if is_mining_pool {
+        //TODO нормально обработать ошибки
+        mutex_blockchain.lock().unwrap().chain = mutexDatabaseThread.lock().unwrap().get_all_blocks().unwrap();
         let node_mining_thread = thread::spawn(move || {
             nm.run();
         });
 
         let block_to_message_thread = thread::spawn(move || {
-            for b in rx.recv() {
-                debug!("Get new block, send to transfer block: {:?}", b);
-                mutexDatabaseThread.lock().unwrap().insert_block(&b);
-                protocol_sender_thread.send(Message::ResponseBlockMessage(BlockMessage::new(b, false))).unwrap();
+            for block in rx {
+                debug!("Получен новый блок: {:?}", block);
+
+                // Попытаться получить мьютекс
+                match mutexDatabaseThread.lock() {
+                    Ok(mut db) => {
+                        // Вставляем блок в БД, обрабатываем возможную ошибку
+                        if let Err(e) = db.insert_block(&block) {
+                            error!("Ошибка при вставке блока в БД: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Не удалось захватить мьютекс БД: {}", e);
+                        // Если мьютекс оказался в состоянии паники, дальше бессмысленно продолжать
+                        break;
+                    }
+                }
+
+                // Отправляем сообщение по протоколу, обрабатываем ошибку
+                let msg = Message::ResponseBlockMessage(BlockMessage::new(block, false));
+                if let Err(e) = protocol_sender_thread.send(msg) {
+                    error!("Не удалось отправить BlockMessage: {}", e);
+                    // Канал получателя закрыт — выходим из цикла
+                    break;
+                }
             }
         });
-        node_mining_thread.join();
-        block_to_message_thread.join();
     }
 
     let connection_pool_thread = thread::spawn(move || {
@@ -184,4 +203,5 @@ fn main() {
     }
     protocol_thread.join().unwrap();
     connection_pool_thread.join().unwrap();
+
 }

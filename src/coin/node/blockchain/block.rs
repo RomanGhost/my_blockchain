@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 

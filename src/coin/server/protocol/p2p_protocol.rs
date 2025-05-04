@@ -1,4 +1,4 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 use chrono::{TimeZone, Utc};
 use log::{debug, error, info, warn};
@@ -7,7 +7,7 @@ use crate::coin::app_state::AppState;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::server::pool::pool_message::PoolMessage;
 use crate::coin::server::pool::pool_message::PoolMessage::BroadcastMessage;
-use crate::coin::server::protocol::message::{request, response};
+use crate::coin::server::protocol::message::response;
 use crate::coin::server::protocol::message::r#type::Message;
 use crate::coin::server::protocol::message::request::{BlocksBeforeMessage, LastNBlocksMessage};
 use crate::coin::server::protocol::message::response::{BlockMessage, ChainMessage, PeerMessage, TransactionMessage};
@@ -62,7 +62,7 @@ impl P2PProtocol{
                         RecvTimeoutError => {
                             continue
                         }
-                        (_) =>{
+                        _ =>{
                             error!("Unknown peer message type: {}", err);
                         }
                     }
@@ -89,7 +89,7 @@ impl P2PProtocol{
                 debug!("Получено сообщение об id сообщения: {}/{}", msg.get_id(), self.last_message_id);
                 return
             }
-            (_) => ()
+            _ => ()
         }
 
         let message_id = message.get_id();
@@ -113,7 +113,7 @@ impl P2PProtocol{
             Message::ResponseTextMessage(msg) => {
                 info!("Get text message: {}", msg.get_text());
             },
-            (_) => {
+            _ => {
                 warn!("Unknown type message");
             }
         }

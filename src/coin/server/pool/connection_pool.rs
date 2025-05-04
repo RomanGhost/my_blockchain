@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 use crate::coin::server::pool::peer_connection::PeerConnection;
 use crate::coin::server::pool::pool_message::PoolMessage;

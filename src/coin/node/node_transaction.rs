@@ -1,12 +1,10 @@
 use std::collections::BinaryHeap;
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Duration;
 
 use log::error;
 
-use crate::coin::node::blockchain::block::Block;
-use crate::coin::node::blockchain::blockchain::Blockchain;
-use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
+use crate::coin::node::blockchain::transaction::SerializedTransaction;
 use crate::coin::node::node_message::TransactionMessage;
 
 pub struct NodeTransaction{
@@ -40,7 +38,7 @@ impl NodeTransaction{
                                 self.external_tx.send(TransactionMessage::TransactionVec(chain)).unwrap();
                             }
                         }
-                        (_) => ()
+                        _ => ()
                     }
                 },
                 Err(err) => {

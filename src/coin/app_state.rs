@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 
-use chrono::{DateTime, Utc};
 use log::{debug, info};
 use crate::coin::db::BlockDatabase;
 use crate::coin::node::blockchain::block::Block;

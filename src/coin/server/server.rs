@@ -1,20 +1,13 @@
-use std::fmt::format;
-use std::format;
 use std::io::{Error, ErrorKind, Read};
-use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 
 use log::{debug, error, info, warn};
 
-use crate::coin::app_state::AppState;
-use crate::coin::node::blockchain::block::Block;
-use crate::coin::server::pool::connection_pool::ConnectionPool;
 use crate::coin::server::pool::pool_message::PoolMessage;
-use crate::coin::server::protocol::message::r#type::Message;
-use crate::coin::server::protocol::p2p_protocol::P2PProtocol;
 
 pub struct Server {
     pool_tx: Sender<PoolMessage>
@@ -96,7 +89,7 @@ fn handle(
     let stream_clone = stream.clone();
 
     // Установим таймаут для чтения
-    if let Ok(mut locked_stream) = stream_clone.lock() {
+    if let Ok(locked_stream) = stream_clone.lock() {
         let _ = locked_stream.set_read_timeout(Some(Duration::from_millis(500)));
     }
 

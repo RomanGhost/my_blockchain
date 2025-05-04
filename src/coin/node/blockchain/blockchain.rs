@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha512};
 
 use crate::coin::node::blockchain::block::Block;
@@ -16,7 +15,7 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, block: Block) -> Result<Block, String> {
-        let mut block = block;
+        let block = block;
         if !Blockchain::is_valid_block(&block) {
             return Err("Hash didn't valid".to_string())
         }

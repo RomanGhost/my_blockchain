@@ -5,7 +5,7 @@ use log::{debug, error, warn};
 
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
-use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
+use crate::coin::node::blockchain::transaction::SerializedTransaction;
 use crate::coin::node::node_message::TransactionMessage;
 use crate::coin::node::node_message::TransactionMessage::{AddTransaction, GetTransaction};
 
@@ -36,7 +36,7 @@ impl NodeMining {
                 Ok(message) => {
                     match message {
                         TransactionMessage::TransactionVec(transactions) => self.mining(transactions),
-                        (_)=>{debug!("transactionInfo");}
+                        _=>{debug!("transactionInfo");}
                     }
                 }
                 Err(err) => {
@@ -120,7 +120,15 @@ impl NodeMining {
                 if let Err(e) = blockchain.add_block(new_block.clone()) {
                     error!("Failed to add valid block: {}", e);
                 } else {
-                    self.tx_external.send(new_block).expect("can't send new block into chanel");
+                    match self.tx_external.send(new_block)
+                    {
+                        Ok(()) => { /* всё ок */ }
+                        Err(e) => {
+                            error!("Не удалось отправить BlockMessage: {}. Завершаем поток.", e);
+                            break; // или return, чтобы выйти из потока
+                        }
+                    }
+
                 }
                 drop(blockchain);
                 break;
