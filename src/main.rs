@@ -7,6 +7,7 @@ use log::{debug, error, info, warn};
 use sha2::digest::core_api::CoreWrapper;
 use coin::app_state::AppState;
 use crate::coin::db::BlockDatabase;
+use crate::coin::node::blockchain::block;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::Blockchain;
 use crate::coin::node::blockchain::transaction::{SerializedTransaction, Transaction};
@@ -113,20 +114,19 @@ fn command_input(protocol_sender: Sender<Message>){
 }
 
 fn main() {
-    let is_mining_pool = false;
-    let is_container = false;
+    let is_mining_pool = true;
+    let is_container = true;
 
-    std::env::set_var("RUST_LOG", "debug");
     // // Инициализируем логгер
     env_logger::init();
     //
     // // Пример логгирования сообщений с разным уровнем
     info!("Program run");
-
-    //initialize db
-    let db = BlockDatabase::new("chain.db").expect("problem with init db");
-
-    let mut app_state = AppState::new(db);
+    // initialize database
+    let database = BlockDatabase::new("test.db").expect("error open file db");
+    let mutexDatabase = Arc::new(Mutex::new(database));
+    let mutexDatabaseThread = mutexDatabase.clone();
+    let mut app_state = AppState::new(mutexDatabase);
 
     let (tx, rx) = channel();
     let (mut nt, mut nm, mutex_blockchain) = initialise_nodes(&mut app_state, tx);
@@ -145,12 +145,14 @@ fn main() {
         });
 
         let block_to_message_thread = thread::spawn(move || {
-
             for b in rx.recv() {
                 debug!("Get new block, send to transfer block: {:?}", b);
+                mutexDatabaseThread.lock().unwrap().insert_block(&b);
                 protocol_sender_thread.send(Message::ResponseBlockMessage(BlockMessage::new(b, false))).unwrap();
             }
         });
+        node_mining_thread.join();
+        block_to_message_thread.join();
     }
 
     let connection_pool_thread = thread::spawn(move || {
@@ -169,7 +171,7 @@ fn main() {
 
         let server = server_copy;
 
-        server.connect(format!("localhost:{}", 7879)).expect("Connect to ");
+        // server.connect(format!("localhost:{}", 7879)).expect("Connect to ");
         //UserNode
         command_input(protocol_sender);
         server_thread.join().unwrap();

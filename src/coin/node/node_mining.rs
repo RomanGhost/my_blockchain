@@ -32,7 +32,7 @@ impl NodeMining {
     }
     pub fn run(&mut self){
         loop{
-            match self.rx_transactions.recv_timeout(Duration::from_millis(300)){
+            match self.rx_transactions.recv_timeout(Duration::from_millis(3000)){
                 Ok(message) => {
                     match message {
                         TransactionMessage::TransactionVec(transactions) => self.mining(transactions),
@@ -46,7 +46,7 @@ impl NodeMining {
                             debug!("Request transactions in mining");
                         }
                         _ => {
-                            error!("Mining| Unknown message type: {}", err);
+                            error!("Mining | Unknown message type: {}", err);
                         }
                     }
                 }
@@ -75,9 +75,9 @@ impl NodeMining {
         };
 
         let mut nonce = 0;
-        debug!("Go to mining cycle");
 
         loop {
+            debug!("wait of lock");
             // Захватываем блокировку на каждой итерации
             let blockchain_result = self.blockchain.lock();
             if blockchain_result.is_err() {
@@ -89,6 +89,7 @@ impl NodeMining {
                 Ok(block) => block,
                 Err(_) => {
                     error!("Corrupted blockchain state");
+                    drop(blockchain);
                     break;
                 }
             };
@@ -118,13 +119,15 @@ impl NodeMining {
                 // Пытаемся добавить блок
                 if let Err(e) = blockchain.add_block(new_block.clone()) {
                     error!("Failed to add valid block: {}", e);
+                } else {
+                    self.tx_external.send(new_block).expect("can't send new block into chanel");
                 }
-                self.tx_external.send(new_block).unwrap();
+                drop(blockchain);
                 break;
             } else {
                 nonce += 1;
             }
-            // debug!("Nonce: {}", nonce);
+            debug!("Nonce: {}", nonce);
 
             // Явно освобождаем блокировку перед следующей итерацией
             drop(blockchain);

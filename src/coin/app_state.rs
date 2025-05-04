@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 
 use chrono::{DateTime, Utc};
-use log::debug;
+use log::{debug, info};
 use crate::coin::db::BlockDatabase;
 use crate::coin::node::blockchain::block::Block;
 use crate::coin::node::blockchain::blockchain::{Blockchain, validate_chain};
@@ -11,20 +11,20 @@ use crate::coin::node::node_message::TransactionMessage;
 use crate::coin::server::server::Server;
 
 pub struct AppState {
+    database: Arc<Mutex<BlockDatabase>>,
     server: Server,
     transaction_tx: Sender<TransactionMessage>,
     blockchain: Arc<Mutex<Blockchain>>,
-    database: Arc<Mutex<BlockDatabase>>,
 }
 
 impl AppState {
 
-    pub fn new(database: BlockDatabase) -> Self {
+    pub fn new(databaseMutex:  Arc<Mutex<BlockDatabase>>) -> Self {
         AppState {
             server: Server::new(channel().0),
             transaction_tx: channel().0,
             blockchain: Arc::new(Mutex::new(Blockchain::new())),
-            database: Arc::new(Mutex::new(database))
+            database: databaseMutex
         }
     }
     pub fn set_server(&mut self, server: Server) {
@@ -39,8 +39,12 @@ impl AppState {
         self.transaction_tx = transaction_tx;
     }
 
+    pub fn insert_block_into_db(&self, block:&Block) -> rusqlite::Result<()> {
+        info!("Insert block into DB");
+        self.database.lock().expect("Can't lock mutex of DB").insert_block(block)
+    }
     pub fn add_block(&self, block:Block, is_force:bool){
-        self.database.lock().expect("error access to mutex db").insert_block(&block).unwrap();
+        self.insert_block_into_db(&block);
         if is_force{
             self.blockchain.lock().unwrap().add_force_block(block);
         }else {

@@ -13,7 +13,7 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs
 # 5. Компилируем зависимости
 RUN cargo build --release
 RUN rm src/*.rs
-
+ENV RUST_LOG=info
 COPY ./src ./src
 # build for release
 RUN rm ./target/release/deps/*
@@ -24,7 +24,8 @@ FROM rust:latest
 # copy the build artifact from the build stage
 COPY --from=build /app/target/release/blockchain .
 RUN mkdir "cache"
-
+ENV RUST_LOG=debug
+ENV RUST_BACKTRACE=full
 
 EXPOSE 7878
 # set the startup command to run your binary
