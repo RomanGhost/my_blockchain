@@ -200,18 +200,24 @@ impl P2PProtocol{
 mod tests {
     use super::*;
     use std::sync::mpsc::{channel, RecvTimeoutError};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use chrono::{Utc, TimeZone};
 
     use crate::coin::app_state::AppState;
+    use crate::coin::db::BlockDatabase;
     use crate::coin::server::pool::pool_message::PoolMessage::BroadcastMessage;
     use crate::coin::server::protocol::message::r#type::Message;
+    use crate::coin::server::protocol::message::request;
     use crate::coin::server::protocol::message::request::{LastNBlocksMessage, BlocksBeforeMessage};
     use crate::coin::server::protocol::message::response::{MessageAnswerFirstInfo, TextMessage};
 
     /// Вспомогалка: создаёт P2PProtocol с пустым AppState и новыми каналами.
     fn make_protocol() -> (P2PProtocol, std::sync::mpsc::Receiver<PoolMessage>) {
-        let app_state = AppState::default();          // убедитесь, что AppState::new() есть
+        let database = BlockDatabase::new("test.db").expect("error open file db");
+        //TODO "Поправить нейминг"
+        let mutexDatabase = Arc::new(Mutex::new(database));
+        let app_state = AppState::new(mutexDatabase);
         let (tx_proto, rx_proto) = channel();
         let (tx_pool, rx_pool) = channel();
         let proto = P2PProtocol::new(app_state, tx_proto, rx_proto, tx_pool);

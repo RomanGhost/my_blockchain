@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 use std::{io, thread};
 use std::io::Write;
-use std::sync::mpmc::RecvError;
 use log::{debug, error, info, warn};
 use coin::app_state::AppState;
 use crate::coin::db::BlockDatabase;
